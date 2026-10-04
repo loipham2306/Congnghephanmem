@@ -43,6 +43,8 @@ desktop.ini
 .cache/
 .eslintcache
 
-# AI Agent Internal Context (Tài liệu nội bộ, không đưa lên Git)
+# Local Documentation (Tài liệu cá nhân cục bộ, không đưa lên Git)
 AGENT_CONTEXT.md
+GIT_CHEATSHEET.md
+KE_HOACH_CHI_TIET_PHONG_KHAM.xlsx
 .agents/
