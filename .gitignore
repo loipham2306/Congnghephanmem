@@ -1,0 +1,48 @@
+# ========================================================
+# ROOT .GITIGNORE - DỰ ÁN QUẢN LÝ PHÒNG KHÁM
+# ========================================================
+
+# Dependencies
+**/node_modules/
+**/.pnp
+**/.pnp.js
+
+# Environment Variables (Chặn tất cả file .env bảo mật)
+**/.env
+**/.env.*
+!**/.env.example
+
+# Production & Build outputs
+**/dist/
+**/build/
+**/.next/
+**/.out/
+
+# Logs & Debugging
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# OS specific files
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# IDE & Code Editor configs
+.vscode/
+.idea/
+*.sublime-workspace
+*.sublime-project
+
+# Temporary & Cache files
+*.tmp
+*.temp
+.cache/
+.eslintcache
+
+# AI Agent Internal Context (Tài liệu nội bộ, không đưa lên Git)
+AGENT_CONTEXT.md
+.agents/
