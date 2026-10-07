@@ -3,6 +3,7 @@ const cors = require("cors");
 const helmet = require("helmet");
 const morgan = require("morgan");
 const authRoutes = require("./routers/auth.router");
+const patientRoutes = require("./routers/patient.router");
 const errorMiddleware = require("./middlewares/error.middleware");
 const app = express();
 
@@ -52,8 +53,11 @@ app.get("/", (req, res) => {
 
 // ========================================================
 // 3. ĐĂNG KÝ CÁC ROUTERS CHÍNH CỦA HỆ THỐNG
-
+// Đăng ksy router cho auth
 app.use("/api/auth", authRoutes);
+
+// Đăng ký router cho patient
+app.use("/api/patients", patientRoutes);
 //xu ly loi
 app.use(errorMiddleware);
 // ========================================================
