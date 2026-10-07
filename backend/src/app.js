@@ -1,8 +1,9 @@
-const express = require('express');
-const cors = require('cors');
-const helmet = require('helmet');
-const morgan = require('morgan');
-
+const express = require("express");
+const cors = require("cors");
+const helmet = require("helmet");
+const morgan = require("morgan");
+const authRoutes = require("./routers/auth.router");
+const errorMiddleware = require("./middlewares/error.middleware");
 const app = express();
 
 // ========================================================
@@ -11,63 +12,70 @@ const app = express();
 app.use(helmet()); // Bảo mật HTTP headers
 // Cấu hình CORS bảo mật: kiểm soát danh sách domain được phép truy cập
 const allowedOrigins = process.env.CORS_ORIGIN
-  ? process.env.CORS_ORIGIN.split(',').map((origin) => origin.trim())
-  : ['http://localhost:3000', 'http://localhost:5173'];
+    ? process.env.CORS_ORIGIN.split(",").map((origin) => origin.trim())
+    : ["http://localhost:3000", "http://localhost:5173"];
 
 app.use(
-  cors({
-    origin: (origin, callback) => {
-      // Cho phép các công cụ test (Postman, curl) hoặc domain trong whitelist
-      if (!origin || allowedOrigins.includes(origin) || process.env.NODE_ENV !== 'production') {
-        return callback(null, true);
-      }
-      return callback(new Error(`CORS blocked: Nguồn [${origin}] không có quyền gọi API!`));
-    },
-    credentials: true,
-  })
+    cors({
+        origin: (origin, callback) => {
+            // Cho phép các công cụ test (Postman, curl) hoặc domain trong whitelist
+            if (
+                !origin ||
+                allowedOrigins.includes(origin) ||
+                process.env.NODE_ENV !== "production"
+            ) {
+                return callback(null, true);
+            }
+            return callback(
+                new Error(
+                    `CORS blocked: Nguồn [${origin}] không có quyền gọi API!`,
+                ),
+            );
+        },
+        credentials: true,
+    }),
 );
-app.use(morgan('dev')); // Log các request gửi lên server trong môi trường dev
+app.use(morgan("dev")); // Log các request gửi lên server trong môi trường dev
 app.use(express.json()); // Phân tích dữ liệu JSON từ body request
 app.use(express.urlencoded({ extended: true })); // Phân tích dữ liệu từ urlencoded form
 
 // ========================================================
 // 2. ROUTE KIỂM TRA HỆ THỐNG (HEALTH CHECK)
 // ========================================================
-app.get('/', (req, res) => {
-  res.status(200).json({
-    success: true,
-    message: 'Chào mừng đến với API Hệ Thống Quản Lý Phòng Khám!',
-    timestamp: new Date().toISOString(),
-  });
+app.get("/", (req, res) => {
+    res.status(200).json({
+        success: true,
+        message: "Chào mừng đến với API Hệ Thống Quản Lý Phòng Khám!",
+        timestamp: new Date().toISOString(),
+    });
 });
 
 // ========================================================
 // 3. ĐĂNG KÝ CÁC ROUTERS CHÍNH CỦA HỆ THỐNG
-// Ghi chú: 2 thành viên sau khi tạo router trong thư mục `routers/`
-// sẽ import và kết nối vào đây (ví dụ: app.use('/api/v1', mainRouter);)
-// ========================================================
 
-
+app.use("/api/auth", authRoutes);
+//xu ly loi
+app.use(errorMiddleware);
 // ========================================================
 // 4. XỬ LÝ KHI KHÔNG TÌM THẤY ROUTE (404 NOT FOUND)
 // ========================================================
 app.use((req, res, next) => {
-  res.status(404).json({
-    success: false,
-    message: `Đường dẫn [${req.method}] ${req.originalUrl} không tồn tại trên hệ thống!`,
-  });
+    res.status(404).json({
+        success: false,
+        message: `Đường dẫn [${req.method}] ${req.originalUrl} không tồn tại trên hệ thống!`,
+    });
 });
 
 // ========================================================
 // 5. XỬ LÝ LỖI TẬP TRUNG TOÀN CỤC (GLOBAL ERROR HANDLER)
 // ========================================================
 app.use((err, req, res, next) => {
-  console.error('Lỗi hệ thống phát sinh:', err.stack);
-  res.status(err.status || 500).json({
-    success: false,
-    message: err.message || 'Lỗi máy chủ nội bộ (Internal Server Error)',
-    ...(process.env.NODE_ENV === 'development' && { error: err.stack }),
-  });
+    console.error("Lỗi hệ thống phát sinh:", err.stack);
+    res.status(err.status || 500).json({
+        success: false,
+        message: err.message || "Lỗi máy chủ nội bộ (Internal Server Error)",
+        ...(process.env.NODE_ENV === "development" && { error: err.stack }),
+    });
 });
 
 module.exports = app;
