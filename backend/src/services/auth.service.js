@@ -3,14 +3,7 @@ const prisma = require("../config/prisma");
 const { generateToken } = require("../utils/jwt");
 const { hashPassword, comparePassword } = require("../utils/password");
 
-async function registerService({
-    username,
-    password,
-    hoten,
-    gioitinh,
-    ngaysinh,
-    sdt,
-}) {
+async function registerService({ username, password }) {
     //chuan hoa truoc khi kiem tra
     const normalizedUserName = username.trim();
 
@@ -27,40 +20,19 @@ async function registerService({
     }
     //hash password
     const hashedPassword = await hashPassword(password);
-    const result = await prisma.$transaction(async (tx) => {
-        const account = await tx.taikhoan.create({
-            data: {
-                tendangnhap: normalizedUserName,
-                matkhau: hashedPassword,
-                vaitro: "BenhNhan",
-            },
-        });
-
-        const patient = await tx.benhnhan.create({
-            data: {
-                matk: account.matk,
-                hoten,
-                gioitinh,
-                ngaysinh: new Date(ngaysinh),
-                sdt,
-            },
-        });
-        return { account, patient };
+    const user = await prisma.taikhoan.create({
+        data: {
+            tendangnhap: normalizedUserName,
+            matkhau: hashedPassword,
+            vaitro: "BenhNhan",
+        },
     });
-
     return {
-        matk: result.account.matk,
-        tendangnhap: result.account.tendangnhap,
-        vaitro: result.account.vaitro,
-
-        mabn: result.patient.mabn,
-        hoten: result.patient.hoten,
-        gioitinh: result.patient.gioitinh,
-        ngaysinh: result.patient.ngaysinh,
-        sdt: result.patient.sdt,
-
-        trangthai: result.account.trangthai,
-        ngaytao: result.account.ngaytao,
+        matk: user.matk,
+        tendangnhap: user.tendangnhap,
+        vaitro: user.vaitro,
+        trangthai: user.trangthai,
+        ngaytao: user.ngaytao,
     };
 }
 
@@ -100,6 +72,7 @@ async function loginService({ username, password }) {
     return {
         user: {
             matk: user.matk,
+            tendangnhap: user.tendangnhap,
             vaitro: user.vaitro,
             trangthai: user.trangthai,
         },
