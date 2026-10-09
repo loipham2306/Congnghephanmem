@@ -1,4 +1,3 @@
-const { use } = require("../app");
 const prisma = require("../config/prisma");
 const { generateToken } = require("../utils/jwt");
 const { hashPassword, comparePassword } = require("../utils/password");

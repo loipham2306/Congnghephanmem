@@ -20,6 +20,7 @@ yarn-debug.log*
 yarn-error.log*
 
 # Prisma Generated Output
+generated/
 /src/generated/
 
 # AI IDE generated tool directories (từ lệnh prisma init)
