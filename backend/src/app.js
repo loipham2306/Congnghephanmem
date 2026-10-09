@@ -53,13 +53,12 @@ app.get("/", (req, res) => {
 
 // ========================================================
 // 3. ĐĂNG KÝ CÁC ROUTERS CHÍNH CỦA HỆ THỐNG
-// Đăng ksy router cho auth
+// Đăng ký router cho auth
 app.use("/api/auth", authRoutes);
 
 // Đăng ký router cho patient
 app.use("/api/patients", patientRoutes);
-//xu ly loi
-app.use(errorMiddleware);
+
 // ========================================================
 // 4. XỬ LÝ KHI KHÔNG TÌM THẤY ROUTE (404 NOT FOUND)
 // ========================================================
@@ -73,13 +72,6 @@ app.use((req, res, next) => {
 // ========================================================
 // 5. XỬ LÝ LỖI TẬP TRUNG TOÀN CỤC (GLOBAL ERROR HANDLER)
 // ========================================================
-app.use((err, req, res, next) => {
-    console.error("Lỗi hệ thống phát sinh:", err.stack);
-    res.status(err.status || 500).json({
-        success: false,
-        message: err.message || "Lỗi máy chủ nội bộ (Internal Server Error)",
-        ...(process.env.NODE_ENV === "development" && { error: err.stack }),
-    });
-});
+app.use(errorMiddleware);
 
 module.exports = app;

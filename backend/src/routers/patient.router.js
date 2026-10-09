@@ -8,6 +8,10 @@ const {
     updateMyProfileController,
 } = require("../controllers/patient.controller");
 
+const {
+    validateUpdateProfile,
+} = require("../validators/patient.validator");
+
 const router = express.Router();
 // lay thong tin benh nhan
 router.get(
@@ -35,6 +39,7 @@ router.put(
     "/me",
     authMiddleware,
     roleMiddleware("BenhNhan"),
+    validateUpdateProfile,
     updateMyProfileController,
 );
 module.exports = router;
