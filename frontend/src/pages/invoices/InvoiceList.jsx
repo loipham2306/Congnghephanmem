@@ -15,7 +15,8 @@ export default function InvoiceList() {
     async function load() {
       try {
         const data = await invoiceService.getAll()
-        setInvoices(data)
+        const savedInvoices = JSON.parse(localStorage.getItem('clinic_invoices') || '[]')
+        setInvoices([...savedInvoices, ...data])
       } finally {
         setLoading(false)
       }
@@ -30,9 +31,16 @@ export default function InvoiceList() {
 
   const handlePay = async (id) => {
     await invoiceService.updateStatus(id, 'PAID')
-    setInvoices(prev => prev.map(i => i.id === id ? { ...i, status: 'PAID', paymentMethod: 'Đã thanh toán tiền mặt' } : i))
+    setInvoices(prev => prev.map(i => i.id === id ? { ...i, status: 'PAID', paymentMethod: 'Đã thanh toán tại quầy' } : i))
+    try {
+      const savedInvoices = JSON.parse(localStorage.getItem('clinic_invoices') || '[]')
+      const updated = savedInvoices.map(i => i.id === id ? { ...i, status: 'PAID', paymentMethod: 'Đã thanh toán tại quầy' } : i)
+      localStorage.setItem('clinic_invoices', JSON.stringify(updated))
+    } catch (e) {
+      console.error(e)
+    }
     if (selectedInvoice && selectedInvoice.id === id) {
-      setSelectedInvoice(prev => ({ ...prev, status: 'PAID' }))
+      setSelectedInvoice(prev => ({ ...prev, status: 'PAID', paymentMethod: 'Đã thanh toán tại quầy' }))
     }
   }
 

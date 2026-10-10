@@ -1,31 +1,34 @@
-require('dotenv').config();
-const app = require('./app');
+import app from './app.js'
+import { connectDB } from './config/db.js'
 
-const PORT = process.env.PORT || 5000;
+const PORT = process.env.PORT || 5000
 
-// Khởi chạy HTTP Server
-const server = app.listen(PORT, () => {
-  console.log('========================================================');
-  console.log(`🏥 SERVER PHÒNG KHÁM ĐANG CHẠY THÀNH CÔNG!`);
-  console.log(`📡 URL API: http://localhost:${PORT}`);
-  console.log(`⏱️ Thời gian bắt đầu: ${new Date().toLocaleString('vi-VN')}`);
-  console.log('========================================================');
-});
+async function startServer() {
+  try {
+    await connectDB()
 
-// Bắt các lỗi bất đồng bộ chưa được xử lý để tránh crash server
-process.on('unhandledRejection', (err) => {
-  console.error('Unhandled Promise Rejection:', err);
-});
+    const server = app.listen(PORT, () => {
+      console.log('='.repeat(50))
+      console.log(` Clinic Management Backend API Server `)
+      console.log(` Listening on port: ${PORT}`)
+      console.log(` Health check: http://localhost:${PORT}/api/health`)
+      console.log('='.repeat(50))
+    })
 
-process.on('uncaughtException', (err) => {
-  console.error('Uncaught Exception:', err);
-  process.exit(1);
-});
+    const shutdown = () => {
+      console.log('\nShutting down server gracefully...')
+      server.close(() => {
+        console.log('Server stopped.')
+        process.exit(0)
+      })
+    }
 
-// Đóng kết nối an toàn khi tắt server (Ctrl + C)
-process.on('SIGINT', () => {
-  server.close(() => {
-    console.log('\n🛑 Server đã dừng an toàn.');
-    process.exit(0);
-  });
-});
+    process.on('SIGINT', shutdown)
+    process.on('SIGTERM', shutdown)
+  } catch (error) {
+    console.error('Failed to start server:', error)
+    process.exit(1)
+  }
+}
+
+startServer()

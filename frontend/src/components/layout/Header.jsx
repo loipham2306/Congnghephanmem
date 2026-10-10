@@ -247,7 +247,30 @@ export default function Header() {
                             </div>
                           </Link>
 
-                          {(user.role === 'ADMIN' || user.role === 'DOCTOR' || user.role === 'STAFF') && (
+                          {user.role === 'DOCTOR' && (
+                            <>
+                              <div className="dropdown-divider"></div>
+                              <Link
+                                to="/doctor/ban-kham"
+                                className="dropdown-user-item text-decoration-none"
+                                onClick={() => setUserMenuOpen(false)}
+                              >
+                                <div className="icon-wrapper text-success bg-success-subtle">
+                                  <i className="bi bi-heart-pulse-fill"></i>
+                                </div>
+                                <div style={{ marginLeft: '12px' }}>
+                                  <div style={{ fontWeight: 600, fontSize: '14px', color: '#0f172a', lineHeight: '1.3' }}>
+                                    Cổng Bác Sĩ & Bàn Khám
+                                  </div>
+                                  <div style={{ fontSize: '11.5px', color: '#64748b', marginTop: '2px' }}>
+                                    Tiếp nhận, chẩn đoán & kê đơn
+                                  </div>
+                                </div>
+                              </Link>
+                            </>
+                          )}
+
+                          {(user.role === 'ADMIN' || user.role === 'STAFF') && (
                             <>
                               <div className="dropdown-divider"></div>
                               <Link

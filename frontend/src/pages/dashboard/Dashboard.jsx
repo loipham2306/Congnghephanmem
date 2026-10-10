@@ -2,6 +2,8 @@ import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import AdminLayout from '../../components/layout/AdminLayout'
 import StatusBadge from '../../components/common/StatusBadge'
+import LoadingSpinner from '../../components/common/LoadingSpinner'
+
 import patientService from '../../services/patientService'
 import appointmentService from '../../services/appointmentService'
 import invoiceService from '../../services/invoiceService'

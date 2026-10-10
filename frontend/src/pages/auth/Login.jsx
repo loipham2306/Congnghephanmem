@@ -20,6 +20,8 @@ export default function Login() {
       const res = await login(email, password)
       if (res?.user?.role === 'PATIENT') {
         navigate('/ho-so-ca-nhan')
+      } else if (res?.user?.role === 'DOCTOR') {
+        navigate('/doctor/ban-kham')
       } else {
         navigate('/dashboard')
       }

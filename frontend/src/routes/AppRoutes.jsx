@@ -24,7 +24,18 @@ import { PrescriptionList } from '../pages/prescriptions'
 import { InvoiceList } from '../pages/invoices'
 import { UserList } from '../pages/users'
 
+// Doctor Portal Pages
+import {
+  DoctorClinicRoom,
+  DoctorAppointments,
+  DoctorMedicalRecords,
+  DoctorPrescriptions,
+  DoctorPatients,
+  DoctorSchedule
+} from '../pages/doctor'
+
 export default function AppRoutes() {
+
   return (
     <Routes>
       {/* Public Pages */}
@@ -54,7 +65,17 @@ export default function AppRoutes() {
       <Route path="/invoices" element={<InvoiceList />} />
       <Route path="/users" element={<UserList />} />
 
+      {/* Doctor Portal */}
+      <Route path="/doctor" element={<DoctorClinicRoom />} />
+      <Route path="/doctor/ban-kham" element={<DoctorClinicRoom />} />
+      <Route path="/doctor/lich-kham" element={<DoctorAppointments />} />
+      <Route path="/doctor/benh-an" element={<DoctorMedicalRecords />} />
+      <Route path="/doctor/ke-don" element={<DoctorPrescriptions />} />
+      <Route path="/doctor/benh-nhan" element={<DoctorPatients />} />
+      <Route path="/doctor/lich-truc" element={<DoctorSchedule />} />
+
       {/* 404 */}
+
       <Route path="*" element={<MainLayout><NotFound /></MainLayout>} />
     </Routes>
   )
