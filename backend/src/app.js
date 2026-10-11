@@ -4,6 +4,10 @@ const helmet = require("helmet");
 const morgan = require("morgan");
 const authRoutes = require("./routers/auth.router");
 const patientRoutes = require("./routers/patient.router");
+const specialtyRoutes = require("./routers/specialty.router");
+const doctorRoutes = require("./routers/doctor.router");
+const roomRoutes = require("./routers/room.router");
+const serviceRoutes = require("./routers/service.router");
 const errorMiddleware = require("./middlewares/error.middleware");
 const app = express();
 
@@ -58,6 +62,18 @@ app.use("/api/auth", authRoutes);
 
 // Đăng ký router cho patient
 app.use("/api/patients", patientRoutes);
+
+// Đăng ký router cho master data chuyên khoa
+app.use("/api/specialties", specialtyRoutes);
+
+// Đăng ký router cho master data bác sĩ
+app.use("/api/doctors", doctorRoutes);
+
+// Đăng ký router cho master data phòng khám
+app.use("/api/rooms", roomRoutes);
+
+// Đăng ký router cho master data dịch vụ
+app.use("/api/services", serviceRoutes);
 
 // ========================================================
 // 4. XỬ LÝ KHI KHÔNG TÌM THẤY ROUTE (404 NOT FOUND)
