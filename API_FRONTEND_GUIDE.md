@@ -126,7 +126,7 @@
 
 ---
 
-## 🏥 4. PHÂN HỆ HỒ SƠ BỆNH NHÂN (`/api/patients`)
+## 🏥 4. PHÂN HỆ HỒ SƠ BỆNH NHÂN & TIỀN SỬ BỆNH ÁN (`/api/patients`)
 
 ### 4.1. Xem hồ sơ cá nhân của Bệnh nhân
 * **Endpoint:** `GET /api/patients/me`
@@ -149,8 +149,7 @@
     "ngaydangky": "2026-10-08T00:00:00.000Z",
     "taikhoan": {
       "tendangnhap": "nguyenvanan",
-      "vaitro": "BenhNhan",
-      "trangthai": "HoatDong"
+      "vaitro": "BenhNhan"
     }
   }
 }
@@ -193,14 +192,15 @@
 
 ---
 
-### 4.3. Xem hồ sơ bệnh án (EMR)
+### 4.3. Xem hồ sơ bệnh án & tiền sử bệnh (EMR)
 * **Endpoint:** `GET /api/patients/me/medical-record`
 * **Quyền:** Cần Token (`Bearer Token`, role `BenhNhan`)
+* **Lưu ý đặc biệt cho Frontend:** Nếu bệnh nhân mới đăng ký và chưa từng nhập tiền sử bệnh, hệ thống **tự động khởi tạo bản ghi mặc định** (nhóm máu `"ChuaRo"`, tiền sử bệnh `null`) mà không trả về lỗi 404, giúp giao diện hiển thị mượt mà.
 * **Response Thành công (200 OK):**
 ```json
 {
   "success": true,
-  "message": "Lấy thông tin hồ sơ bệnh án thành công!",
+  "message": "Lấy hồ sơ bệnh án thành công",
   "data": {
     "mahsba": 1,
     "nhommau": "O",        // "A" | "B" | "AB" | "O" | "ChuaRo"
@@ -217,19 +217,71 @@
 
 ---
 
-### 4.4. Xem lịch sử các lần khám bệnh
+### 4.4. Cập nhật hồ sơ bệnh án & tiền sử bệnh (EMR)
+* **Endpoint:** `PUT /api/patients/me/medical-record`
+* **Quyền:** Cần Token (`Bearer Token`, role `BenhNhan`)
+* **Request Body:**
+```json
+{
+  "nhommau": "O",
+  "tiensubenh": "Viêm dạ dày nhẹ năm 2024",
+  "diung": "Dị ứng hải sản (tôm, cua), dị ứng Aspirin",
+  "ghichu": "Huyết áp ổn định 120/80"
+}
+```
+* **Response Thành công (200 OK):**
+```json
+{
+  "success": true,
+  "message": "Cập nhật hồ sơ bệnh án thành công",
+  "data": {
+    "mahsba": 1,
+    "nhommau": "O",
+    "tiensubenh": "Viêm dạ dày nhẹ năm 2024",
+    "diung": "Dị ứng hải sản (tôm, cua), dị ứng Aspirin",
+    "ghichu": "Huyết áp ổn định 120/80",
+    "benhnhan": {
+      "hoten": "Nguyễn Văn An",
+      "sdt": "0988776655"
+    }
+  }
+}
+```
+
+---
+
+### 4.5. Xóa / làm trống (reset) tiền sử bệnh án
+* **Endpoint:** `DELETE /api/patients/me/medical-record`
+* **Quyền:** Cần Token (`Bearer Token`, role `BenhNhan`)
+* **Mục đích:** Bệnh nhân tự làm trống tiền sử bệnh án hoặc thông tin dị ứng đã nhập nhầm.
+* **Response Thành công (200 OK):**
+```json
+{
+  "success": true,
+  "message": "Đã làm trống (reset) tiền sử bệnh án thành công!",
+  "data": {
+    "mahsba": 1,
+    "nhommau": "ChuaRo",
+    "tiensubenh": null,
+    "diung": null,
+    "ghichu": null
+  }
+}
+```
+
+---
+
+### 4.6. Xem danh sách lịch sử các lần khám bệnh
 * **Endpoint:** `GET /api/patients/me/medical-history`
 * **Quyền:** Cần Token (`Bearer Token`, role `BenhNhan`)
 * **Response Thành công (200 OK):**
 ```json
 {
   "success": true,
-  "message": "Lấy thông tin lịch sử khám bệnh thành công!",
+  "message": "Lấy lịch sử khám thành công",
   "data": [
     {
       "malsk": 101,
-      "mabn": 1,
-      "mabs": 5,
       "ngay": "2026-10-05T09:30:00.000Z",
       "trieuchung": "Sốt nhẹ, ho có đờm, đau họng 2 ngày",
       "chandoan": "Viêm đường hô hấp trên cấp tính",
@@ -276,11 +328,252 @@
       "hoadon": {
         "mahd": 77,
         "tongtien": "350000",
-        "trangthaithanhtoan": "DaThanhToan", // "ChuaThanhToan" | "DaThanhToan" | "DaHuy"
+        "trangthaithanhtoan": "DaThanhToan",
         "phuongthuctt": "ChuyenKhoan"
       }
     }
   ]
+}
+```
+
+---
+
+### 4.7. Xem chi tiết 1 lần khám bệnh cụ thể
+* **Endpoint:** `GET /api/patients/me/medical-history/:id`
+* **Quyền:** Cần Token (`Bearer Token`, role `BenhNhan`)
+* **Tham số đường dẫn:** `:id` - Mã lần khám bệnh (`malsk`).
+* **Lưu ý bảo mật:** Hệ thống kiểm tra quyền sở hữu, chỉ cho phép bệnh nhân xem phiếu khám thuộc về chính mình.
+* **Response Thành công (200 OK):**
+```json
+{
+  "success": true,
+  "message": "Lấy chi tiết lần khám bệnh thành công",
+  "data": {
+    "malsk": 101,
+    "mabn": 1,
+    "ngay": "2026-10-05T09:30:00.000Z",
+    "trieuchung": "Sốt nhẹ, ho có đờm, đau họng 2 ngày",
+    "chandoan": "Viêm đường hô hấp trên cấp tính",
+    "ketluan": "Theo dõi điều trị ngoại trú bằng thuốc",
+    "bacsi": {
+      "mabs": 5,
+      "hocham": "Bác sĩ CKI",
+      "nhanvien": {
+        "hoten": "BS. Trần Văn Bình",
+        "sdt": "0909123456"
+      },
+      "chuyenkhoa": {
+        "tenchuyenkhoa": "Khoa Tai Mũi Họng"
+      }
+    },
+    "donthuoc": {
+      "madt": 55,
+      "ngayke": "2026-10-05T00:00:00.000Z",
+      "ghichubacsi": "Uống sau ăn no, kiêng nước đá",
+      "chitietdonthuoc": [
+        {
+          "mactdt": 12,
+          "soluong": 20,
+          "lieudung": "Sáng 1 viên, tối 1 viên",
+          "thoigiansudung": "5 ngày",
+          "thuoc": {
+            "tenthuoc": "Amoxicillin 500mg",
+            "donvitinh": "Viên"
+          }
+        }
+      ]
+    },
+    "chitietdichvukham": [
+      {
+        "mactdvk": 88,
+        "soluong": 1,
+        "ketqua": "Họng sung huyết nhẹ",
+        "dichvu": {
+          "tendichvu": "Khám chuyên khoa Tai Mũi Họng",
+          "dongia": "150000"
+        }
+      }
+    ],
+    "hoadon": {
+      "mahd": 77,
+      "tongtien": "350000",
+      "trangthaithanhtoan": "DaThanhToan",
+      "phuongthuctt": "ChuyenKhoan"
+    }
+  }
+}
+```
+
+---
+
+### 4.8. Bệnh nhân tự yêu cầu xóa tài khoản cá nhân
+* **Endpoint:** `DELETE /api/patients/me`
+* **Quyền:** Cần Token (`Bearer Token`, role `BenhNhan`)
+* **Lưu ý an toàn (Safe Delete Guard):** 
+  * Nếu bệnh nhân **chưa từng khám bệnh hoặc phát sinh hóa đơn**: Hệ thống xóa vĩnh viễn tài khoản và hồ sơ.
+  * Nếu bệnh nhân **đã từng khám bệnh hoặc phát sinh hóa đơn**: Server trả về `400 Bad Request` vì hồ sơ y tế không được phép xóa cứng theo luật y khoa.
+* **Response Thành công (200 OK):**
+```json
+{
+  "success": true,
+  "message": "Tài khoản của bạn đã được xóa thành công khỏi hệ thống!",
+  "data": {
+    "mabn": 1,
+    "hoten": "Nguyễn Văn An"
+  }
+}
+```
+* **Response Bị Chặn (400 Bad Request):**
+```json
+{
+  "success": false,
+  "message": "Tài khoản của bạn đã phát sinh lịch sử khám chữa bệnh hoặc hóa đơn viện phí tại phòng khám, do đó không thể xóa vĩnh viễn theo quy định y tế! Vui lòng liên hệ quản trị viên hoặc lễ tân để được hỗ trợ khóa tài khoản."
+}
+```
+
+---
+
+### 4.9. [Admin, Lễ tân, Bác sĩ] Lấy danh sách toàn bộ bệnh nhân
+* **Endpoint:** `GET /api/patients`
+* **Quyền:** Cần Token (`Bearer Token`, role `Admin`, `LeTan`, hoặc `BacSi`)
+* **Query Parameters (Tùy chọn):**
+  * `search` (string): Tìm kiếm theo họ tên, SĐT, CCCD, số BHYT.
+  * `gender` (string): Lọc theo giới tính (`Nam`, `Nu`, `Khac`).
+  * `page` (number): Số trang (mặc định: 1).
+  * `limit` (number): Số bản ghi mỗi trang (mặc định: 10, tối đa: 100).
+* **Response Thành công (200 OK):**
+```json
+{
+  "success": true,
+  "message": "Lấy danh sách bệnh nhân thành công",
+  "data": [
+    {
+      "mabn": 1,
+      "matk": 1,
+      "hoten": "Nguyễn Văn An",
+      "gioitinh": "Nam",
+      "ngaysinh": "2000-01-15T00:00:00.000Z",
+      "sdt": "0912345678",
+      "diachi": "123 Đường Nguyễn Huệ, Quận 1, TP.HCM",
+      "cccd": "079200001234",
+      "sobhyt": "DN4791234567890",
+      "ngaydangky": "2026-10-08T00:00:00.000Z",
+      "taikhoan": {
+        "matk": 1,
+        "tendangnhap": "nguyenvanan",
+        "trangthai": "HoatDong"
+      },
+      "hosobenhan": {
+        "nhommau": "O",
+        "tiensubenh": null,
+        "diung": "Dị ứng Penicillin"
+      },
+      "_count": {
+        "lichhen": 2,
+        "lichsukham": 5,
+        "hoadon": 5
+      }
+    }
+  ],
+  "pagination": {
+    "page": 1,
+    "limit": 10,
+    "total": 1,
+    "totalPages": 1
+  }
+}
+```
+
+---
+
+### 4.10. [Bác sĩ & Admin] Tra cứu hồ sơ & tiền sử bệnh án bệnh nhân
+* **Endpoint:** `GET /api/patients/:id/medical-record`
+* **Quyền:** Cần Token (`Bearer Token`, role `BacSi` hoặc `Admin`)
+* **Tham số đường dẫn:** `:id` - Mã bệnh nhân (`mabn`).
+* **Response Thành công (200 OK):**
+```json
+{
+  "success": true,
+  "message": "Tra cứu hồ sơ bệnh án bệnh nhân thành công",
+  "data": {
+    "mabn": 1,
+    "hoten": "Nguyễn Văn An",
+    "gioitinh": "Nam",
+    "ngaysinh": "2000-01-15T00:00:00.000Z",
+    "sdt": "0912345678",
+    "diachi": "123 Đường Nguyễn Huệ, Quận 1, TP.HCM",
+    "cccd": "079200001234",
+    "sobhyt": "DN4791234567890",
+    "hosobenhan": {
+      "mahsba": 1,
+      "nhommau": "O",
+      "tiensubenh": "Không có tiền sử bệnh lý tim mạch hay huyết áp",
+      "diung": "Dị ứng phấn hoa, kháng sinh Penicillin",
+      "ghichu": "Thể trạng sức khỏe bình thường"
+    }
+  }
+}
+```
+
+---
+
+### 4.11. [Bác sĩ & Admin] Cập nhật hồ sơ bệnh án khi khám bệnh
+* **Endpoint:** `PUT /api/patients/:id/medical-record`
+* **Quyền:** Cần Token (`Bearer Token`, role `BacSi` hoặc `Admin`)
+* **Tham số đường dẫn:** `:id` - Mã bệnh nhân (`mabn`).
+* **Request Body:**
+```json
+{
+  "nhommau": "AB",
+  "tiensubenh": "Phát hiện tiền sử đau nửa đầu Migraine",
+  "diung": "Dị ứng Paracetamol",
+  "ghichu": "Cần lưu ý khi chỉ định thuốc giảm đau"
+}
+```
+* **Response Thành công (200 OK):**
+```json
+{
+  "success": true,
+  "message": "Cập nhật hồ sơ bệnh án bệnh nhân thành công",
+  "data": {
+    "mahsba": 1,
+    "nhommau": "AB",
+    "tiensubenh": "Phát hiện tiền sử đau nửa đầu Migraine",
+    "diung": "Dị ứng Paracetamol",
+    "ghichu": "Cần lưu ý khi chỉ định thuốc giảm đau",
+    "benhnhan": {
+      "hoten": "Nguyễn Văn An",
+      "sdt": "0912345678"
+    }
+  }
+}
+```
+
+---
+
+### 4.12. [Admin] Xóa bệnh nhân theo ID (Safe Delete Guard)
+* **Endpoint:** `DELETE /api/patients/:id`
+* **Quyền:** Cần Token (`Bearer Token`, role `Admin`)
+* **Tham số đường dẫn:** `:id` - Mã bệnh nhân (`mabn`).
+* **Lưu ý an toàn (Safe Delete Guard):** 
+  * Nếu bệnh nhân **đã từng khám bệnh hoặc phát sinh hóa đơn**: Server trả về `400 Bad Request` để bảo vệ chứng từ y tế. Admin nên chuyển trạng thái tài khoản sang `KhoaTaiKhoan` thay vì xóa.
+  * Nếu bệnh nhân **chưa từng có lịch sử khám/hóa đơn**: Xóa sạch trong một Transaction (`hosobenhan`, `lichhen`, `benhnhan`, `taikhoan`).
+* **Response Thành công (200 OK):**
+```json
+{
+  "success": true,
+  "message": "Đã xóa thành công bệnh nhân \"Nguyễn Văn An\" và tài khoản liên kết!",
+  "data": {
+    "mabn": 1,
+    "hoten": "Nguyễn Văn An"
+  }
+}
+```
+* **Response Bị Chặn (400 Bad Request):**
+```json
+{
+  "success": false,
+  "message": "Không thể xóa bệnh nhân \"Nguyễn Văn An\" (ID: 1) vì đã có 5 lần khám bệnh và 5 hóa đơn viện phí liên kết. Theo quy định pháp luật y tế, hồ sơ y khoa thật không được phép xóa cứng! Hãy chuyển trạng thái tài khoản sang \"KhoaTaiKhoan\" nếu muốn ngưng hoạt động."
 }
 ```
 

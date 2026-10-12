@@ -111,6 +111,113 @@ function validateUpdateProfile(req, res, next) {
     next();
 }
 
+function validateUpdateMedicalRecord(req, res, next) {
+    const { nhommau, tiensubenh, diung, ghichu } = req.body;
+
+    if (
+        nhommau === undefined &&
+        tiensubenh === undefined &&
+        diung === undefined &&
+        ghichu === undefined
+    ) {
+        return res.status(400).json({
+            success: false,
+            message: "Vui lòng cung cấp ít nhất một thông tin cần cập nhật trong hồ sơ bệnh án!",
+        });
+    }
+
+    if (nhommau !== undefined) {
+        const validBloodTypes = ["A", "B", "AB", "O", "ChuaRo"];
+        if (!validBloodTypes.includes(nhommau)) {
+            return res.status(400).json({
+                success: false,
+                message: `Nhóm máu không hợp lệ! Chỉ chấp nhận: ${validBloodTypes.join(", ")}`,
+            });
+        }
+    }
+
+    if (tiensubenh !== undefined && tiensubenh !== null) {
+        if (typeof tiensubenh !== "string" || tiensubenh.length > 2000) {
+            return res.status(400).json({
+                success: false,
+                message: "Tiền sử bệnh không được vượt quá 2000 ký tự!",
+            });
+        }
+    }
+
+    if (diung !== undefined && diung !== null) {
+        if (typeof diung !== "string" || diung.length > 1000) {
+            return res.status(400).json({
+                success: false,
+                message: "Thông tin dị ứng không được vượt quá 1000 ký tự!",
+            });
+        }
+    }
+
+    if (ghichu !== undefined && ghichu !== null) {
+        if (typeof ghichu !== "string" || ghichu.length > 2000) {
+            return res.status(400).json({
+                success: false,
+                message: "Ghi chú không được vượt quá 2000 ký tự!",
+            });
+        }
+    }
+
+    next();
+}
+
+function validateIdParam(req, res, next) {
+    const id = Number(req.params.id);
+    if (!id || isNaN(id) || id <= 0) {
+        return res.status(400).json({
+            success: false,
+            message: "Mã định danh (ID) không hợp lệ, phải là số nguyên dương!",
+        });
+    }
+    next();
+}
+
+function validatePatientQuery(req, res, next) {
+    const { page, limit, gender } = req.query;
+
+    if (page !== undefined) {
+        const parsedPage = Number(page);
+        if (isNaN(parsedPage) || parsedPage <= 0 || !Number.isInteger(parsedPage)) {
+            return res.status(400).json({
+                success: false,
+                message: "Số trang (page) phải là số nguyên dương lớn hơn 0!",
+            });
+        }
+    }
+
+    if (limit !== undefined) {
+        const parsedLimit = Number(limit);
+        if (isNaN(parsedLimit) || parsedLimit <= 0 || parsedLimit > 100 || !Number.isInteger(parsedLimit)) {
+            return res.status(400).json({
+                success: false,
+                message: "Số lượng bản ghi mỗi trang (limit) phải là số nguyên từ 1 đến 100!",
+            });
+        }
+    }
+
+    if (gender !== undefined && gender !== "") {
+        const validGenders = ["Nam", "Nu", "Khac"];
+        if (!validGenders.includes(gender)) {
+            return res.status(400).json({
+                success: false,
+                message: `Giới tính lọc không hợp lệ! Chỉ chấp nhận: ${validGenders.join(", ")}`,
+            });
+        }
+    }
+
+    next();
+}
+
 module.exports = {
     validateUpdateProfile,
+    validateUpdateMedicalRecord,
+    validateIdParam,
+    validatePatientQuery,
 };
+
+
