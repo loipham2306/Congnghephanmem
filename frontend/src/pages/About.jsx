@@ -27,7 +27,7 @@ export default function About() {
       {/* About Section */}
       <section id="about" className="about section">
         <div className="container" data-aos="fade-up" data-aos-delay="100">
-          <div className="row align-items-center">
+          <div className="row gy-4 align-items-center">
             <div className="col-lg-6" data-aos="fade-right" data-aos-delay="100">
               <div className="about-content">
                 <h2>Chăm Sóc Tận Tâm Cho Mọi Gia Đình</h2>
@@ -61,11 +61,13 @@ export default function About() {
 
             <div className="col-lg-6" data-aos="fade-left" data-aos-delay="200">
               <div className="image-wrapper">
-                <img
-                  src="https://images.unsplash.com/photo-1586773860418-d37222d8fce3?w=600&h=450&fit=crop"
-                  className="img-fluid main-image"
-                  alt="Cơ Sở Y Tế"
-                />
+                <div className="main-image">
+                  <img
+                    src="https://images.unsplash.com/photo-1586773860418-d37222d8fce3?w=600&h=450&fit=crop"
+                    className="img-fluid"
+                    alt="Cơ Sở Y Tế"
+                  />
+                </div>
                 <div className="floating-image" data-aos="zoom-in" data-aos-delay="400">
                   <img
                     src="https://images.unsplash.com/photo-1612349317150-e413f6a5b16d?w=160&h=160&fit=crop&crop=face"
@@ -88,9 +90,9 @@ export default function About() {
               </div>
             </div>
 
-            <div className="row">
+            <div className="row gy-4">
               {values.map((value, i) => (
-                <div key={i} className="col-lg-3 col-md-6" data-aos="fade-up" data-aos-delay={100 * (i + 1)}>
+                <div key={i} className="col-lg-6 col-md-6" data-aos="fade-up" data-aos-delay={100 * (i + 1)}>
                   <div className="value-item">
                     <div className="value-icon">
                       <i className={`bi ${value.icon}`}></i>

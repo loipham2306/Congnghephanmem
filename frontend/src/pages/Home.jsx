@@ -350,7 +350,7 @@ export default function Home() {
         </div>
 
         <div className="container" data-aos="fade-up" data-aos-delay="100">
-          <div className="row g-0">
+          <div className="row gy-4 mb-5">
             <div className="col-lg-8" data-aos="fade-right" data-aos-delay="200">
               <div className="featured-service-main">
                 <div className="service-image-wrapper">
@@ -397,7 +397,7 @@ export default function Home() {
           </div>
 
           <div className="specialties-grid" data-aos="fade-up" data-aos-delay="300">
-            <div className="row align-items-center">
+            <div className="row gy-4 align-items-stretch">
               {[
                 { title: 'Chăm Sóc Bà Mẹ', desc: 'Hỗ trợ mang thai & sinh con chuyên nghiệp', img: 'https://images.unsplash.com/photo-1584820927498-cfe5211fd8bf?w=200&h=160&fit=crop' },
                 { title: 'Tiêm Chủng', desc: 'Chương trình tiêm chủng đầy đủ', img: 'https://images.unsplash.com/photo-1542736705-b3232e60f2f4?w=200&h=160&fit=crop' },
@@ -505,7 +505,7 @@ export default function Home() {
       <section id="call-to-action" className="call-to-action section light-background">
         <div className="container" data-aos="fade-up" data-aos-delay="100">
           <div className="hero-content">
-            <div className="row align-items-center">
+            <div className="row gy-4 align-items-center">
               <div className="col-lg-6">
                 <div className="content-wrapper" data-aos="fade-up" data-aos-delay="200">
                   <h1>Xuất Sắc Trong Chăm Sóc Y Tế, Mỗi Ngày</h1>
@@ -556,7 +556,7 @@ export default function Home() {
           </div>
 
           <div className="contact-block">
-            <div className="row">
+            <div className="row gy-4 align-items-center">
               <div className="col-lg-8">
                 <div className="contact-content" data-aos="fade-up" data-aos-delay="200">
                   <h2>Cần Hỗ Trợ Y Tế Khẩn Cấp?</h2>

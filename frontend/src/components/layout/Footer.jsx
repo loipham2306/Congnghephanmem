@@ -5,9 +5,9 @@ export default function Footer() {
     <footer id="footer" className="footer position-relative">
       <div className="container">
         <div className="footer-main">
-          <div className="row align-items-start">
+          <div className="row gy-4 align-items-start">
             {/* Brand Section */}
-            <div className="col-lg-5">
+            <div className="col-lg-4 col-md-12 mb-4 mb-lg-0">
               <div className="brand-section">
                 <Link to="/" className="logo d-flex align-items-center" aria-label="Trang chủ">
                   <img src={logo} alt="Logo Phòng Khám Phú Lợi Bảo" className="brand-logo" />
@@ -26,7 +26,7 @@ export default function Footer() {
                   với sự chăm sóc tận tâm để bảo vệ sức khỏe cho bạn và gia đình.
                 </p>
 
-                <div className="contact-info mt-5">
+                <div className="contact-info">
                   <div className="contact-item">
                     <i className="bi bi-geo-alt"></i>
                     <span>123 Đường Lê Lợi, Quận 1, TP. Hồ Chí Minh</span>
@@ -44,10 +44,10 @@ export default function Footer() {
             </div>
 
             {/* Footer Navigation */}
-            <div className="col-lg-7">
+            <div className="col-lg-8 col-md-12">
               <div className="footer-nav-wrapper">
-                <div className="row">
-                  <div className="col-6 col-lg-3">
+                <div className="row gy-4 gx-3 gx-lg-4">
+                  <div className="col-6 col-md-3 col-lg-3">
                     <div className="nav-column">
                       <h6>Phòng Khám</h6>
                       <nav className="footer-nav">
@@ -60,7 +60,7 @@ export default function Footer() {
                     </div>
                   </div>
 
-                  <div className="col-6 col-lg-3">
+                  <div className="col-6 col-md-3 col-lg-3">
                     <div className="nav-column">
                       <h6>Dịch Vụ</h6>
                       <nav className="footer-nav">
@@ -73,7 +73,7 @@ export default function Footer() {
                     </div>
                   </div>
 
-                  <div className="col-6 col-lg-3">
+                  <div className="col-6 col-md-3 col-lg-3">
                     <div className="nav-column">
                       <h6>Hỗ Trợ</h6>
                       <nav className="footer-nav">
@@ -86,7 +86,7 @@ export default function Footer() {
                     </div>
                   </div>
 
-                  <div className="col-6 col-lg-3">
+                  <div className="col-6 col-md-3 col-lg-3">
                     <div className="nav-column">
                       <h6>Kết Nối</h6>
                       <nav className="footer-nav">
