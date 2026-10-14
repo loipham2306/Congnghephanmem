@@ -8,6 +8,7 @@ const specialtyRoutes = require("./routers/specialty.router");
 const doctorRoutes = require("./routers/doctor.router");
 const roomRoutes = require("./routers/room.router");
 const serviceRoutes = require("./routers/service.router");
+const shiftRoutes = require("./routers/shift.router");
 const errorMiddleware = require("./middlewares/error.middleware");
 const app = express();
 
@@ -74,6 +75,9 @@ app.use("/api/rooms", roomRoutes);
 
 // Đăng ký router cho master data dịch vụ
 app.use("/api/services", serviceRoutes);
+
+// Đăng ký router cho quản lý ca làm việc và phân công trực
+app.use("/api/shifts", shiftRoutes);
 
 // ========================================================
 // 4. XỬ LÝ KHI KHÔNG TÌM THẤY ROUTE (404 NOT FOUND)

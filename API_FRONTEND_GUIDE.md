@@ -1287,7 +1287,314 @@ Phân hệ phục vụ hiển thị bảng giá dịch vụ khám bệnh, danh m
 
 ---
 
-## 🛠️ 9. MẪU CODE GỌI API CHO FRONTEND (AXIOS INSTANCE)
+## 📅 9. PHÂN HỆ QUẢN LÝ CA LÀM VIỆC & PHÂN CÔNG TRỰC (`/api/shifts`)
+
+### 9.1. Lấy danh sách ca làm việc (kèm phân công & bộ lọc)
+* **Endpoint:** `GET /api/shifts`
+* **Quyền:** Cần Token (`Bearer Token` mọi vai trò)
+* **Query Parameters (Tùy chọn):**
+  * `date`: Lọc theo ngày cụ thể (`YYYY-MM-DD`, ví dụ: `2026-10-20`).
+  * `fromDate`: Từ ngày (`YYYY-MM-DD`).
+  * `toDate`: Đến ngày (`YYYY-MM-DD`).
+  * `roomId`: Lọc theo phòng khám (`maphong`).
+  * `staffId`: Lọc theo nhân viên trực (`manv`).
+  * `specialtyId`: Lọc theo chuyên khoa của phòng (`mack`).
+  * `page`, `limit`: Phân trang dữ liệu (nếu không truyền sẽ trả về toàn bộ danh sách).
+* **Response Thành công (200 OK):**
+```json
+{
+  "success": true,
+  "message": "Lấy danh sách ca làm việc thành công!",
+  "data": [
+    {
+      "maca": 1,
+      "ngay": "2026-10-20",
+      "giobatdau": "07:30",
+      "gioketthuc": "11:30",
+      "maphong": 1,
+      "phongkham": {
+        "maphong": 1,
+        "tenphong": "Phòng Khám Nội 101",
+        "trangthai": "SanSang",
+        "chuyenkhoa": {
+          "mack": 1,
+          "tenchuyenkhoa": "Khoa Nội Tổng Quát"
+        }
+      },
+      "phanconglamviec": [
+        {
+          "mapclv": 10,
+          "manv": 1,
+          "vaitrotrongca": "Bác sĩ khám chính",
+          "nhanvien": {
+            "manv": 1,
+            "hoten": "BS. Nguyễn Văn A",
+            "chucvu": "BacSi",
+            "sdt": "0912345678",
+            "bacsi": {
+              "mabs": 1,
+              "hocham": "Thạc sĩ Bác sĩ",
+              "chuyenkhoa": {
+                "mack": 1,
+                "tenchuyenkhoa": "Khoa Nội Tổng Quát"
+              }
+            }
+          }
+        }
+      ],
+      "_count": {
+        "phanconglamviec": 1
+      }
+    }
+  ]
+}
+```
+
+---
+
+### 9.2. Xem chi tiết ca làm việc
+* **Endpoint:** `GET /api/shifts/:id`
+* **Quyền:** Cần Token (`Bearer Token`)
+* **Response Thành công (200 OK):**
+```json
+{
+  "success": true,
+  "message": "Lấy thông tin chi tiết ca làm việc thành công!",
+  "data": {
+    "maca": 1,
+    "ngay": "2026-10-20",
+    "giobatdau": "07:30",
+    "gioketthuc": "11:30",
+    "maphong": 1,
+    "phongkham": {
+      "maphong": 1,
+      "tenphong": "Phòng Khám Nội 101",
+      "trangthai": "SanSang",
+      "chuyenkhoa": {
+        "mack": 1,
+        "tenchuyenkhoa": "Khoa Nội Tổng Quát"
+      }
+    },
+    "phanconglamviec": [
+      {
+        "mapclv": 10,
+        "manv": 1,
+        "vaitrotrongca": "Bác sĩ khám chính",
+        "nhanvien": {
+          "manv": 1,
+          "hoten": "BS. Nguyễn Văn A",
+          "chucvu": "BacSi",
+          "sdt": "0912345678",
+          "bacsi": {
+            "mabs": 1,
+            "hocham": "Thạc sĩ Bác sĩ"
+          }
+        }
+      }
+    ]
+  }
+}
+```
+
+---
+
+### 9.3. Tạo mới ca làm việc (Hỗ trợ phân công đồng thời)
+* **Endpoint:** `POST /api/shifts`
+* **Quyền:** Admin (`Bearer Token` với vai trò `Admin`)
+* **Tính năng thông minh:** Tự động phát hiện và chặn nếu phòng khám hoặc nhân viên bị trùng giờ ca khác trong cùng ngày (trả về `409 Conflict`).
+* **Request Body:**
+```json
+{
+  "ngay": "2026-10-20",
+  "giobatdau": "07:30",
+  "gioketthuc": "11:30",
+  "maphong": 1,
+  "assignments": [
+    {
+      "manv": 1,
+      "vaitrotrongca": "Bác sĩ khám chính"
+    },
+    {
+      "manv": 2,
+      "vaitrotrongca": "Y tá hỗ trợ"
+    }
+  ]
+}
+```
+* **Response Thành công (201 Created):**
+```json
+{
+  "success": true,
+  "message": "Tạo mới ca làm việc thành công!",
+  "data": {
+    "maca": 5,
+    "ngay": "2026-10-20",
+    "giobatdau": "07:30",
+    "gioketthuc": "11:30",
+    "maphong": 1,
+    "phongkham": {
+      "maphong": 1,
+      "tenphong": "Phòng Khám Nội 101"
+    },
+    "phanconglamviec": [
+      {
+        "mapclv": 21,
+        "manv": 1,
+        "vaitrotrongca": "Bác sĩ khám chính"
+      }
+    ]
+  }
+}
+```
+
+---
+
+### 9.4. Cập nhật ca làm việc
+* **Endpoint:** `PUT /api/shifts/:id`
+* **Quyền:** Admin (`Bearer Token` với vai trò `Admin`)
+* **Request Body:**
+```json
+{
+  "ngay": "2026-10-20",
+  "giobatdau": "08:00",
+  "gioketthuc": "12:00",
+  "maphong": 2
+}
+```
+* **Response Thành công (200 OK):**
+```json
+{
+  "success": true,
+  "message": "Cập nhật ca làm việc thành công!",
+  "data": {
+    "maca": 5,
+    "ngay": "2026-10-20",
+    "giobatdau": "08:00",
+    "gioketthuc": "12:00",
+    "maphong": 2
+  }
+}
+```
+
+---
+
+### 9.5. Xóa ca làm việc
+* **Endpoint:** `DELETE /api/shifts/:id`
+* **Quyền:** Admin (`Bearer Token` với vai trò `Admin`)
+* **Response Thành công (200 OK):**
+```json
+{
+  "success": true,
+  "message": "Xóa ca làm việc ngày 2026-10-20 (08:00 - 12:00) tại phòng Phòng Khám 102 thành công!",
+  "data": {
+    "maca": 5,
+    "ngay": "2026-10-20",
+    "giobatdau": "08:00",
+    "gioketthuc": "12:00",
+    "tenphong": "Phòng Khám 102",
+    "deletedAssignmentsCount": 2
+  }
+}
+```
+
+---
+
+### 9.6. Phân công nhân viên vào ca
+* **Endpoint:** `POST /api/shifts/:id/assign`
+* **Quyền:** Admin (`Bearer Token` với vai trò `Admin`)
+* **Request Body:**
+```json
+{
+  "manv": 3,
+  "vaitrotrongca": "Y tá hỗ trợ"
+}
+```
+* **Response Thành công (201 Created):**
+```json
+{
+  "success": true,
+  "message": "Phân công nhân viên \"Nguyễn Thị B\" vào ca thành công!",
+  "data": {
+    "mapclv": 25,
+    "maca": 5,
+    "manv": 3,
+    "vaitrotrongca": "Y tá hỗ trợ",
+    "nhanvien": {
+      "manv": 3,
+      "hoten": "Nguyễn Thị B",
+      "chucvu": "YTa"
+    }
+  }
+}
+```
+
+---
+
+### 9.7. Hủy phân công nhân viên khỏi ca
+* **Endpoint:** `DELETE /api/shifts/:id/assign/:staffId`
+* **Quyền:** Admin (`Bearer Token` với vai trò `Admin`)
+* **Response Thành công (200 OK):**
+```json
+{
+  "success": true,
+  "message": "Hủy phân công nhân viên \"Nguyễn Thị B\" khỏi ca làm việc thành công!",
+  "data": {
+    "mapclv": 25,
+    "maca": 5,
+    "manv": 3,
+    "hoten": "Nguyễn Thị B",
+    "tenphong": "Phòng Khám Nội 101"
+  }
+}
+```
+
+---
+
+### 9.8. Xem lịch trực cá nhân của nhân viên
+* **Endpoint:** `GET /api/shifts/staff/:staffId`
+* **Quyền:** Cần Token (`Bearer Token`)
+* **Query Parameters (Tùy chọn):** `fromDate`, `toDate` (YYYY-MM-DD)
+* **Response Thành công (200 OK):**
+```json
+{
+  "success": true,
+  "message": "Lấy lịch trực của nhân viên \"BS. Nguyễn Văn A\" thành công!",
+  "data": {
+    "nhanvien": {
+      "manv": 1,
+      "hoten": "BS. Nguyễn Văn A",
+      "chucvu": "BacSi",
+      "sdt": "0912345678",
+      "bacsi": {
+        "mabs": 1,
+        "hocham": "Thạc sĩ Bác sĩ",
+        "chuyenkhoa": "Khoa Nội Tổng Quát"
+      }
+    },
+    "shifts": [
+      {
+        "mapclv": 10,
+        "vaitrotrongca": "Bác sĩ khám chính",
+        "calamviec": {
+          "maca": 1,
+          "ngay": "2026-10-20",
+          "giobatdau": "07:30",
+          "gioketthuc": "11:30",
+          "phongkham": {
+            "maphong": 1,
+            "tenphong": "Phòng Khám Nội 101",
+            "chuyenkhoa": "Khoa Nội Tổng Quát"
+          }
+        }
+      }
+    ]
+  }
+}
+```
+
+---
+
+## 🛠️ 10. MẪU CODE GỌI API CHO FRONTEND (AXIOS INSTANCE)
 
 Đoạn mã mẫu cài đặt Axios Interceptor tự động gắn token và xử lý lỗi:
 
