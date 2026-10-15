@@ -9,6 +9,9 @@ const doctorRoutes = require("./routers/doctor.router");
 const roomRoutes = require("./routers/room.router");
 const serviceRoutes = require("./routers/service.router");
 const shiftRoutes = require("./routers/shift.router");
+const appointmentRoutes = require("./routers/appointment.router");
+const invoiceRoutes = require("./routers/invoice.router");
+const statisticRoutes = require("./routers/statistic.router");
 const errorMiddleware = require("./middlewares/error.middleware");
 const app = express();
 
@@ -78,6 +81,15 @@ app.use("/api/services", serviceRoutes);
 
 // Đăng ký router cho quản lý ca làm việc và phân công trực
 app.use("/api/shifts", shiftRoutes);
+
+// Đăng ký router cho đặt lịch khám trực tuyến và quản lý lịch hẹn
+app.use("/api/appointments", appointmentRoutes);
+
+// Đăng ký router cho thanh toán và hóa đơn viện phí
+app.use("/api/invoices", invoiceRoutes);
+
+// Đăng ký router cho báo cáo thống kê và dashboard Admin
+app.use("/api/statistics", statisticRoutes);
 
 // ========================================================
 // 4. XỬ LÝ KHI KHÔNG TÌM THẤY ROUTE (404 NOT FOUND)
