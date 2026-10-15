@@ -5507,3 +5507,64 @@ body.dark-mode .header .brand-title-top {
     border: 1px solid #94a3b8 !important;
   }
 }
+
+/* ADMIN DASHBOARD 4 THẺ CHỈ SỐ GOM 1 HÀNG */
+.ad-stats-grid-4cols {
+  display: grid !important;
+  grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
+  gap: 0.85rem !important;
+  margin-bottom: 1rem !important;
+  width: 100% !important;
+}
+
+@media (max-width: 992px) {
+  .ad-stats-grid-4cols {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  }
+}
+
+@media (max-width: 576px) {
+  .ad-stats-grid-4cols {
+    grid-template-columns: 1fr !important;
+  }
+}
+
+/* ADMIN DOCTOR GRID & MODAL CON LĂN */
+.ad-doctor-grid-2cols {
+  display: grid !important;
+  grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  gap: 1.25rem !important;
+  width: 100% !important;
+}
+
+@media (max-width: 768px) {
+  .ad-doctor-grid-2cols {
+    grid-template-columns: 1fr !important;
+  }
+}
+
+.ad-modal-scrollable-body {
+  overflow-y: auto !important;
+  max-height: calc(88vh - 135px) !important;
+  overscroll-behavior: contain !important;
+  scrollbar-width: thin !important;
+  scrollbar-color: #94a3b8 #f1f5f9 !important;
+}
+
+.ad-modal-scrollable-body::-webkit-scrollbar {
+  width: 8px !important;
+}
+
+.ad-modal-scrollable-body::-webkit-scrollbar-track {
+  background: #f1f5f9 !important;
+  border-radius: 4px !important;
+}
+
+.ad-modal-scrollable-body::-webkit-scrollbar-thumb {
+  background: #cbd5e1 !important;
+  border-radius: 4px !important;
+}
+
+.ad-modal-scrollable-body::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8 !important;
+}

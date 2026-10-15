@@ -283,28 +283,42 @@
   gap: 12px !important;
 }
 
-/* STATUSBAR CHÂN TRANG */
+/* STATUSBAR CHÂN TRANG - NẰM GỌN TRONG MAIN CONTENT, KHÔNG BAO GIỜ ĐÈ SIDEBAR */
 .doctor-statusbar {
-  height: 38px !important;
+  height: 40px !important;
   background-color: #ffffff !important;
   border-top: 1px solid #e2e8f0 !important;
-  position: fixed !important;
-  bottom: 0 !important;
-  left: 0 !important;
-  right: 0 !important;
-  z-index: 1030 !important;
+  position: relative !important;
+  margin-top: auto !important;
+  flex-shrink: 0 !important;
+  z-index: 10 !important;
   display: flex !important;
   align-items: center !important;
   justify-content: space-between !important;
-  padding: 0 24px !important;
+  padding: 0 1.5rem !important;
   font-size: 12px !important;
   color: #64748b !important;
-  box-shadow: 0 -1px 3px rgba(15, 23, 42, 0.04) !important;
+  box-shadow: 0 -1px 3px rgba(15, 23, 42, 0.02) !important;
 }
 
 /* ========================================================
-   CSS CHUYÊN DỤNG IN TOA THUỐC (@media print)
-   Chỉ in đúng mẫu đơn thuốc, ẩn 100% toàn bộ giao diện web
+   GIAO DIỆN XEM TRƯỚC TOA THUỐC TRÊN MÀN HÌNH (SCREEN PREVIEW)
+   ======================================================== */
+.prescription-paper-preview {
+  background: #ffffff;
+  max-width: 780px;
+  margin: 0 auto;
+  border-radius: 8px;
+  box-shadow: 0 10px 30px rgba(15, 23, 42, 0.15), 0 1px 3px rgba(15, 23, 42, 0.08);
+  padding: 36px 44px;
+  color: #1e293b;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif;
+  line-height: 1.5;
+}
+
+/* ========================================================
+   CSS CHUYÊN DỤNG IN TOA THUỐC & BỆNH ÁN (@media print)
+   Chỉ in đúng mẫu đơn thuốc chuẩn Bộ Y Tế, chống trang trắng
    ======================================================== */
 @media screen {
   .print-only {
@@ -313,22 +327,53 @@
 }
 
 @media print {
-  /* Ẩn mọi thành phần website và thanh điều hướng */
+  /* Khôi phục toàn bộ chiều cao của trang in, không giới hạn bởi fixed viewport */
   html, body {
     background: #ffffff !important;
     color: #000000 !important;
     margin: 0 !important;
     padding: 0 !important;
-    font-size: 13pt !important;
+    font-size: 12pt !important;
+    height: auto !important;
+    min-height: auto !important;
+    max-height: none !important;
+    overflow: visible !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
   }
 
+  #root,
+  .ad-wrapper,
+  .ad-main-wrap,
+  .ad-content-body {
+    display: block !important;
+    position: static !important;
+    height: auto !important;
+    min-height: auto !important;
+    max-height: none !important;
+    overflow: visible !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    background: #ffffff !important;
+    border: none !important;
+    box-shadow: none !important;
+  }
+
+  /* Ẩn triệt để tất cả các thành phần UI, thanh điều hướng, nút bấm, popups */
+  .ad-sidebar,
+  .ad-topbar,
+  .ad-mobile-backdrop,
+  .ad-sidebar-footer,
   .doctor-topbar,
   .doctor-sidebar,
   .doctor-statusbar,
   .doctor-page-header,
   .clinic-room-grid,
   .no-print,
-  .card:not(.prescription-print-document),
+  .no-print *,
+  .card:not(.prescription-print-document):not(.medical-record-print-document),
   .doc-card,
   .btn,
   button,
@@ -336,52 +381,91 @@
   nav,
   aside,
   header,
-  footer {
+  footer,
+  .modal-backdrop,
+  .modal-header,
+  .modal-footer {
     display: none !important;
   }
 
-  /* Khung đơn thuốc cần in */
-  .prescription-print-document {
+  /* Hiển thị vùng in chuyên dụng */
+  .print-only {
     display: block !important;
-    position: absolute !important;
-    top: 0 !important;
-    left: 0 !important;
+    visibility: visible !important;
+  }
+
+  /* Trải rộng cột chứa bản in ra toàn trang A4 */
+  .prescription-print-col,
+  .col-12:has(.prescription-print-document),
+  .col-12:has(.medical-record-print-document) {
     width: 100% !important;
     max-width: 100% !important;
+    flex: 0 0 100% !important;
+    padding: 0 !important;
     margin: 0 !important;
-    padding: 20px 30px !important;
+    display: block !important;
+  }
+
+  /* Khung đơn thuốc và bệnh án cần in */
+  .prescription-print-document,
+  .medical-record-print-document,
+  .prescription-paper-preview {
+    display: block !important;
+    visibility: visible !important;
+    position: static !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    margin: 0 auto !important;
+    padding: 8mm 12mm !important;
     background: #ffffff !important;
     color: #000000 !important;
     border: none !important;
     box-shadow: none !important;
+    page-break-after: avoid !important;
+    break-after: avoid !important;
   }
 
-  .prescription-print-document * {
+  .prescription-print-document *,
+  .medical-record-print-document *,
+  .prescription-paper-preview * {
+    visibility: visible !important;
     color: #000000 !important;
   }
 
-  .prescription-print-document table {
+  .prescription-print-document table,
+  .prescription-paper-preview table {
     width: 100% !important;
     border-collapse: collapse !important;
-    margin: 15px 0 !important;
+    margin: 14px 0 !important;
   }
 
   .prescription-print-document table th,
-  .prescription-print-document table td {
-    border: 1px solid #444444 !important;
-    padding: 8px 12px !important;
+  .prescription-print-document table td,
+  .prescription-paper-preview table th,
+  .prescription-paper-preview table td {
+    border: 1px solid #333333 !important;
+    padding: 6px 10px !important;
     font-size: 11pt !important;
   }
 
-  .prescription-print-document table th {
+  .prescription-print-document table th,
+  .prescription-paper-preview table th {
     background-color: #f1f5f9 !important;
+    font-weight: bold !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  /* Giữ màu sắc mã VietQR và badge khi in */
+  .prescription-print-document img,
+  .prescription-paper-preview img {
     -webkit-print-color-adjust: exact !important;
     print-color-adjust: exact !important;
   }
 
   @page {
     size: A4 portrait;
-    margin: 12mm 15mm 15mm 15mm;
+    margin: 8mm 12mm 12mm 12mm;
   }
 }
 

@@ -147,10 +147,10 @@ export default function DoctorMedicalRecords() {
 
         {/* Cột Chi Tiết Bệnh Án (Xem nhanh hoặc In) */}
         <div className="col-12 col-lg-5">
-          <div className="card border-0 shadow-sm rounded-3 bg-white p-3 h-100">
+          <div className="card border-0 shadow-sm rounded-3 bg-white p-3 h-100 medical-record-print-document">
             {selectedRecord ? (
               <div>
-                <div className="d-flex align-items-center justify-content-between border-bottom pb-2 mb-3">
+                <div className="d-flex align-items-center justify-content-between border-bottom pb-2 mb-3 no-print">
                   <h6 className="fw-bold text-primary mb-0 d-flex align-items-center">
                     <i className="bi bi-journal-medical me-2"></i> Chi Tiết Bệnh Án #{selectedRecord.code}
                   </h6>

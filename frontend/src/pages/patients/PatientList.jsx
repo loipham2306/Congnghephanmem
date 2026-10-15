@@ -10,6 +10,7 @@ export default function PatientList() {
   const [search, setSearch] = useState('')
   const [showModal, setShowModal] = useState(false)
   const [selectedPatient, setSelectedPatient] = useState(null)
+  const [toastMsg, setToastMsg] = useState('')
 
   const filteredPatients = patients.filter(p => 
     p.fullName?.toLowerCase().includes(search.toLowerCase()) ||
@@ -20,14 +21,17 @@ export default function PatientList() {
   const handleCreatePatient = async (data) => {
     await addPatient(data)
     setShowModal(false)
+    setToastMsg(selectedPatient ? 'Đã cập nhật hồ sơ bệnh nhân!' : 'Đã thêm bệnh nhân mới thành công!')
+    setTimeout(() => setToastMsg(''), 3000)
   }
 
   return (
     <AdminLayout title="Quản Lý Hồ Sơ Bệnh Nhân">
-      <div className="card border-0 shadow-sm rounded-4 mb-4">
-        <div className="card-body p-4">
+      {/* 1. Thanh Công Cụ & Thêm Mới */}
+      <div className="card border-0 shadow-sm rounded-3 mb-4 bg-white">
+        <div className="card-body p-3">
           <div className="d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-3">
-            <div className="input-group" style={{ maxWidth: '400px' }}>
+            <div className="input-group input-group-sm" style={{ maxWidth: '380px' }}>
               <span className="input-group-text bg-white border-end-0">
                 <i className="bi bi-search text-muted"></i>
               </span>
@@ -40,51 +44,100 @@ export default function PatientList() {
               />
             </div>
 
-            <button 
-              className="btn btn-primary rounded-pill px-4 d-flex align-items-center justify-content-center"
-              onClick={() => { setSelectedPatient(null); setShowModal(true) }}
-            >
-              <i className="bi bi-person-plus me-2"></i> Thêm Bệnh Nhân Mới
-            </button>
+            <div className="d-flex align-items-center gap-2">
+              <span className="text-muted small d-none d-sm-inline">
+                Tổng cộng: <strong>{filteredPatients.length}</strong> bệnh nhân
+              </span>
+              <button 
+                className="btn btn-primary btn-sm px-3 d-flex align-items-center"
+                onClick={() => { setSelectedPatient(null); setShowModal(true) }}
+              >
+                <i className="bi bi-person-plus-fill me-1"></i>
+                <span>Thêm Bệnh Nhân Mới</span>
+              </button>
+            </div>
           </div>
         </div>
       </div>
 
-      <div className="card border-0 shadow-sm rounded-4">
+      {/* 2. Bảng Danh Sách Bệnh Nhân */}
+      <div className="card border-0 shadow-sm rounded-3 bg-white overflow-hidden">
         <div className="card-body p-0">
           {loading ? (
-            <LoadingSpinner text="Đang tải danh sách bệnh nhân..." />
+            <div className="p-4">
+              <LoadingSpinner text="Đang tải danh sách bệnh nhân..." />
+            </div>
           ) : (
             <PatientTable 
               patients={filteredPatients}
               onDelete={deletePatient}
-              onView={(p) => alert(`Chi tiết bệnh nhân: ${p.fullName} - SĐT: ${p.phone} - Nhóm máu: ${p.bloodGroup || 'O+'}`)}
+              onView={(p) => alert(`Hồ sơ bệnh nhân: ${p.fullName} - SĐT: ${p.phone} - Nhóm máu: ${p.bloodGroup || 'O+'}`)}
               onEdit={(p) => { setSelectedPatient(p); setShowModal(true) }}
             />
           )}
         </div>
       </div>
 
-      {/* Add / Edit Patient Modal */}
+      {/* 3. MODAL THÊM / SỬA BỆNH NHÂN - NỀN TIÊU ĐỀ MÀU XANH */}
       {showModal && (
-        <div className="modal show d-block" style={{ backgroundColor: 'rgba(0,0,0,0.5)' }}>
-          <div className="modal-dialog modal-lg modal-dialog-centered">
-            <div className="modal-content rounded-4 border-0 shadow">
-              <div className="modal-header border-0 pb-0">
-                <h5 className="modal-title fw-bold">
-                  {selectedPatient ? 'Chỉnh Sửa Thông Tin Bệnh Nhân' : 'Tiếp Nhận Bệnh Nhân Mới'}
-                </h5>
-                <button type="button" className="btn-close" onClick={() => setShowModal(false)}></button>
+        <div className="modal show d-block" tabIndex="-1" style={{ backgroundColor: 'rgba(15, 23, 42, 0.55)', backdropFilter: 'blur(2px)' }}>
+          <div className="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
+            <div className="modal-content border-0 shadow-lg rounded-3 overflow-hidden">
+              
+              {/* NỀN TIÊU ĐỀ MÀU XANH THEO YÊU CẦU */}
+              <div 
+                className="modal-header py-3 px-4 text-white border-0"
+                style={{ 
+                  background: 'linear-gradient(135deg, #1e40af 0%, #175cdd 100%)'
+                }}
+              >
+                <div className="d-flex align-items-center gap-3">
+                  <div 
+                    className="rounded-circle d-flex align-items-center justify-content-center"
+                    style={{ width: '40px', height: '40px', backgroundColor: 'rgba(255, 255, 255, 0.2)' }}
+                  >
+                    <i className="bi bi-person-plus-fill fs-5 text-white"></i>
+                  </div>
+                  <div>
+                    <h5 className="modal-title fw-bold text-white mb-0" style={{ fontSize: '1.05rem' }}>
+                      {selectedPatient ? 'Chỉnh Sửa Hồ Sơ Bệnh Nhân' : 'Tiếp Nhận & Thêm Bệnh Nhân Mới'}
+                    </h5>
+                    <span style={{ fontSize: '12px', color: 'rgba(255, 255, 255, 0.85)' }}>
+                      Phòng Khám Đa Khoa Phú Lợi Bảo • Quản lý hồ sơ bệnh án điện tử
+                    </span>
+                  </div>
+                </div>
+
+                <button 
+                  type="button" 
+                  className="btn-close btn-close-white" 
+                  onClick={() => setShowModal(false)}
+                  aria-label="Đóng"
+                ></button>
               </div>
-              <div className="modal-body p-4">
+
+              {/* THÂN MODAL */}
+              <div className="modal-body p-4 bg-white">
                 <PatientForm 
                   initialData={selectedPatient}
                   onSubmit={handleCreatePatient}
                   onCancel={() => setShowModal(false)}
                 />
               </div>
+
             </div>
           </div>
+        </div>
+      )}
+
+      {/* Toast thông báo */}
+      {toastMsg && (
+        <div 
+          className="position-fixed bottom-0 end-0 m-3 p-3 bg-dark text-white rounded-3 shadow"
+          style={{ zIndex: 3000, fontSize: '13.5px' }}
+        >
+          <i className="bi bi-check-circle-fill text-success me-2 fs-5"></i>
+          {toastMsg}
         </div>
       )}
     </AdminLayout>

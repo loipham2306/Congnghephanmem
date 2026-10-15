@@ -275,14 +275,23 @@ export default function Header() {
                         </li>
                       )}
 
-                      {(user.role === 'ADMIN' || user.role === 'STAFF') && (
-                        <li className="d-xl-none">
-                          <NavLink to="/dashboard" className="drawer-nav-link" onClick={() => setMobileNavOpen(false)}>
-                            <span className="drawer-nav-icon text-danger bg-danger-subtle"><i className="bi bi-speedometer2"></i></span>
-                            <span className="drawer-nav-text">Cổng Quản Trị Hệ Thống</span>
-                            <i className="bi bi-chevron-right drawer-chevron"></i>
-                          </NavLink>
-                        </li>
+                      {(user.role === 'ADMIN' || user.role === 'STAFF' || user.role === 'ACCOUNTANT') && (
+                        <>
+                          <li className="d-xl-none">
+                            <NavLink to="/dashboard" className="drawer-nav-link" onClick={() => setMobileNavOpen(false)}>
+                              <span className="drawer-nav-icon text-danger bg-danger-subtle"><i className="bi bi-speedometer2"></i></span>
+                              <span className="drawer-nav-text">Cổng Quản Trị Hệ Thống</span>
+                              <i className="bi bi-chevron-right drawer-chevron"></i>
+                            </NavLink>
+                          </li>
+                          <li className="d-xl-none">
+                            <NavLink to="/accountant" className="drawer-nav-link" onClick={() => setMobileNavOpen(false)}>
+                              <span className="drawer-nav-icon text-primary bg-primary-subtle"><i className="bi bi-wallet2"></i></span>
+                              <span className="drawer-nav-text">Cổng Kế Toán</span>
+                              <i className="bi bi-chevron-right drawer-chevron"></i>
+                            </NavLink>
+                          </li>
+                        </>
                       )}
 
                       <li className="d-xl-none mt-2">
@@ -458,7 +467,7 @@ export default function Header() {
                               </>
                             )}
 
-                            {(user.role === 'ADMIN' || user.role === 'STAFF') && (
+                            {(user.role === 'ADMIN' || user.role === 'STAFF' || user.role === 'ACCOUNTANT') && (
                               <>
                                 <div className="dropdown-divider"></div>
                                 <Link
@@ -475,6 +484,24 @@ export default function Header() {
                                     </div>
                                     <div style={{ fontSize: '11.5px', color: '#64748b', marginTop: '2px' }}>
                                       Quản lý phòng khám & bệnh nhân
+                                    </div>
+                                  </div>
+                                </Link>
+
+                                <Link
+                                  to="/accountant"
+                                  className="dropdown-user-item text-decoration-none"
+                                  onClick={() => setUserMenuOpen(false)}
+                                >
+                                  <div className="icon-wrapper text-primary bg-primary-subtle">
+                                    <i className="bi bi-wallet2"></i>
+                                  </div>
+                                  <div style={{ marginLeft: '12px' }}>
+                                    <div style={{ fontWeight: 600, fontSize: '14px', color: '#0f172a', lineHeight: '1.3' }}>
+                                      Cổng Kế Toán
+                                    </div>
+                                    <div style={{ fontSize: '11.5px', color: '#64748b', marginTop: '2px' }}>
+                                      Thu viện phí, hóa đơn & sổ quỹ
                                     </div>
                                   </div>
                                 </Link>

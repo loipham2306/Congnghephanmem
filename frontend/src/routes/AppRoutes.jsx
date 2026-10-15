@@ -34,6 +34,9 @@ import {
   DoctorSchedule
 } from '../pages/doctor'
 
+// Accountant Portal Page
+import { AccountantPortal } from '../pages/accountant'
+
 export default function AppRoutes() {
 
   return (
@@ -73,6 +76,10 @@ export default function AppRoutes() {
       <Route path="/doctor/ke-don" element={<DoctorPrescriptions />} />
       <Route path="/doctor/benh-nhan" element={<DoctorPatients />} />
       <Route path="/doctor/lich-truc" element={<DoctorSchedule />} />
+
+      {/* Accountant Portal */}
+      <Route path="/accountant" element={<AccountantPortal />} />
+      <Route path="/ke-toan" element={<AccountantPortal />} />
 
       {/* 404 */}
 

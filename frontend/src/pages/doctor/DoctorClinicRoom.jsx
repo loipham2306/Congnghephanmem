@@ -153,6 +153,7 @@ export default function DoctorClinicRoom() {
 
   const [isSaving, setIsSaving] = useState(false)
   const [showSavedModal, setShowSavedModal] = useState(false)
+  const [showPrintModal, setShowPrintModal] = useState(false)
   const [savedDataSummary, setSavedDataSummary] = useState(null)
 
   // Mời vào khám
@@ -827,10 +828,18 @@ export default function DoctorClinicRoom() {
                 <div className="d-flex gap-2">
                   <button 
                     type="button" 
-                    className="btn btn-outline-primary d-flex align-items-center"
-                    onClick={() => window.print()}
+                    className="btn btn-outline-primary d-flex align-items-center fw-medium"
+                    onClick={() => setShowPrintModal(true)}
                   >
-                    <i className="bi bi-printer me-1.5"></i> In Toa Thuốc
+                    <i className="bi bi-eye me-1.5"></i> Xem & In Toa Thuốc
+                  </button>
+                  <button 
+                    type="button" 
+                    className="btn btn-outline-secondary d-flex align-items-center"
+                    onClick={() => window.print()}
+                    title="In nhanh trực tiếp (Ctrl + P)"
+                  >
+                    <i className="bi bi-printer me-1.5"></i> In Nhanh
                   </button>
                   <button 
                     type="button" 
@@ -913,10 +922,11 @@ export default function DoctorClinicRoom() {
                 type="button" 
                 className="btn btn-outline-primary d-flex align-items-center justify-content-center py-2"
                 onClick={() => {
-                  window.print()
+                  setShowSavedModal(false)
+                  setShowPrintModal(true)
                 }}
               >
-                <i className="bi bi-printer me-2"></i> In Toa Thuốc Cho Bệnh Nhân
+                <i className="bi bi-eye me-2"></i> Xem & In Toa Thuốc Cho Bệnh Nhân
               </button>
 
               <button 
@@ -945,123 +955,277 @@ export default function DoctorClinicRoom() {
         </div>
       )}
 
-      {/* ================= KHỐI ĐƠN THUỐC CHUYÊN IN (CHỈ HIỆN KHI BẤM IN) ================= */}
-      <div className="prescription-print-document print-only">
-        <div style={{ textAlign: 'center', borderBottom: '2px solid #000', paddingBottom: '12px', marginBottom: '16px' }}>
-          <div style={{ fontWeight: 'bold', fontSize: '15pt', textTransform: 'uppercase' }}>PHÒNG KHÁM ĐA KHOA PHÚ LỢI BẢO</div>
-          <div style={{ fontSize: '10pt', color: '#444' }}>Địa chỉ: 123 Nguyễn Tri Phương, Phường 7, Quận 5, TP.HCM • Hotline: (028) 3838 9999</div>
-          <h2 style={{ fontSize: '18pt', fontWeight: 'bold', margin: '14px 0 6px 0', textTransform: 'uppercase' }}>ĐƠN THUỐC ĐIỆN TỬ</h2>
-          <div style={{ fontSize: '10pt', fontStyle: 'italic' }}>
-            Mã đơn: DT-{currentPatient.patientCode} • Ngày kê: {new Date().toLocaleDateString('vi-VN')}
+      {/* ================= MODAL XEM TRƯỚC VÀ IN TOA THUỐC ================= */}
+      {showPrintModal && (
+        <div 
+          className="position-fixed top-0 start-0 w-100 h-100 d-flex flex-column align-items-center justify-content-start overflow-y-auto p-3 p-md-4"
+          style={{ backgroundColor: 'rgba(15, 23, 42, 0.75)', zIndex: 2100, backdropFilter: 'blur(4px)' }}
+        >
+          {/* Header thanh công cụ modal (chỉ hiển thị trên màn hình, ẩn khi in) */}
+          <div className="bg-white rounded-3 shadow-sm px-4 py-3 mb-3 d-flex align-items-center justify-content-between w-100 no-print" style={{ maxWidth: '820px' }}>
+            <div className="d-flex align-items-center gap-2">
+              <div className="rounded-circle bg-primary-subtle text-primary p-2 d-flex align-items-center justify-content-center" style={{ width: '38px', height: '38px' }}>
+                <i className="bi bi-printer-fill fs-5"></i>
+              </div>
+              <div>
+                <h5 className="mb-0 fw-bold text-dark">Xem Trước Bản In Toa Thuốc</h5>
+                <span className="text-muted small">Khổ giấy tiêu chuẩn A4 • Bệnh nhân: <strong>{currentPatient.name}</strong></span>
+              </div>
+            </div>
+
+            <div className="d-flex gap-2">
+              <button 
+                type="button" 
+                className="btn btn-primary d-flex align-items-center px-3 fw-semibold shadow-sm"
+                onClick={() => window.print()}
+              >
+                <i className="bi bi-printer me-1.5"></i> In Toa Thuốc (Ctrl + P)
+              </button>
+              <button 
+                type="button" 
+                className="btn btn-outline-secondary px-3"
+                onClick={() => setShowPrintModal(false)}
+              >
+                <i className="bi bi-x-lg me-1"></i> Đóng
+              </button>
+            </div>
           </div>
-        </div>
 
-        <div style={{ marginBottom: '16px', fontSize: '11pt', lineHeight: '1.6' }}>
-          <div>Họ và tên bệnh nhân: <strong>{currentPatient.name}</strong> • Tuổi: <strong>{currentPatient.age}</strong> • Giới tính: <strong>{currentPatient.gender}</strong></div>
-          <div>Mã hồ sơ: <strong>{currentPatient.patientCode}</strong> • Điện thoại: <strong>{currentPatient.phone}</strong></div>
-          <div>Địa chỉ: {currentPatient.address}</div>
-          <div>Chẩn đoán: <strong>{diagnosis}</strong> (Mã ICD: {icdCode.split(' - ')[0]})</div>
-        </div>
+          {/* Khung giấy A4 xem trước */}
+          <div className="prescription-paper-preview mb-4">
+            <div style={{ textAlign: 'center', borderBottom: '2px solid #000', paddingBottom: '12px', marginBottom: '16px' }}>
+              <div style={{ fontWeight: 'bold', fontSize: '15pt', textTransform: 'uppercase' }}>PHÒNG KHÁM ĐA KHOA PHÚ LỢI BẢO</div>
+              <div style={{ fontSize: '10pt', color: '#444' }}>Địa chỉ: 123 Nguyễn Tri Phương, Phường 7, Quận 5, TP.HCM • Hotline: (028) 3838 9999</div>
+              <h2 style={{ fontSize: '18pt', fontWeight: 'bold', margin: '14px 0 6px 0', textTransform: 'uppercase' }}>ĐƠN THUỐC ĐIỆN TỬ</h2>
+              <div style={{ fontSize: '10pt', fontStyle: 'italic' }}>
+                Mã đơn: DT-{currentPatient.patientCode} • Ngày kê: {new Date().toLocaleDateString('vi-VN')}
+              </div>
+            </div>
 
-        <table style={{ width: '100%', borderCollapse: 'collapse', marginBottom: '16px' }}>
-          <thead>
-            <tr>
-              <th style={{ width: '35px', textAlign: 'center' }}>STT</th>
-              <th>Tên Thuốc / Hàm Lượng</th>
-              <th style={{ width: '70px', textAlign: 'center' }}>Số Lượng</th>
-              <th style={{ width: '90px', textAlign: 'right' }}>Đơn Giá</th>
-              <th style={{ width: '100px', textAlign: 'right' }}>Thành Tiền</th>
-              <th>Cách Dùng & Liều Lượng</th>
-            </tr>
-          </thead>
-          <tbody>
-            {prescriptionItems.map((item, idx) => {
-              const unitPrice = getMedPrice(item.medicine)
-              const lineTotal = unitPrice * (item.quantity || 1)
-              return (
-                <tr key={item.id}>
-                  <td style={{ textAlign: 'center', fontWeight: 'bold' }}>{idx + 1}</td>
-                  <td style={{ fontWeight: 'bold' }}>{item.medicine}</td>
-                  <td style={{ textAlign: 'center', fontWeight: 'bold' }}>{item.quantity} {item.unit}</td>
-                  <td style={{ textAlign: 'right' }}>{unitPrice.toLocaleString('vi-VN')} đ</td>
-                  <td style={{ textAlign: 'right', fontWeight: 'bold' }}>{lineTotal.toLocaleString('vi-VN')} đ</td>
-                  <td>{item.usage}</td>
+            <div style={{ marginBottom: '16px', fontSize: '11pt', lineHeight: '1.6' }}>
+              <div>Họ và tên bệnh nhân: <strong>{currentPatient.name}</strong> • Tuổi: <strong>{currentPatient.age}</strong> • Giới tính: <strong>{currentPatient.gender}</strong></div>
+              <div>Mã hồ sơ: <strong>{currentPatient.patientCode}</strong> • Điện thoại: <strong>{currentPatient.phone}</strong></div>
+              <div>Địa chỉ: {currentPatient.address}</div>
+              <div>Chẩn đoán: <strong>{diagnosis}</strong> (Mã ICD: {icdCode.split(' - ')[0]})</div>
+            </div>
+
+            <table style={{ width: '100%', borderCollapse: 'collapse', marginBottom: '16px' }}>
+              <thead>
+                <tr>
+                  <th style={{ width: '35px', textAlign: 'center' }}>STT</th>
+                  <th>Tên Thuốc / Hàm Lượng</th>
+                  <th style={{ width: '70px', textAlign: 'center' }}>Số Lượng</th>
+                  <th style={{ width: '90px', textAlign: 'right' }}>Đơn Giá</th>
+                  <th style={{ width: '100px', textAlign: 'right' }}>Thành Tiền</th>
+                  <th>Cách Dùng & Liều Lượng</th>
                 </tr>
-              )
-            })}
-            {prescriptionItems.length === 0 && (
+              </thead>
+              <tbody>
+                {prescriptionItems.map((item, idx) => {
+                  const unitPrice = getMedPrice(item.medicine)
+                  const lineTotal = unitPrice * (item.quantity || 1)
+                  return (
+                    <tr key={item.id}>
+                      <td style={{ textAlign: 'center', fontWeight: 'bold' }}>{idx + 1}</td>
+                      <td style={{ fontWeight: 'bold' }}>{item.medicine}</td>
+                      <td style={{ textAlign: 'center', fontWeight: 'bold' }}>{item.quantity} {item.unit}</td>
+                      <td style={{ textAlign: 'right' }}>{unitPrice.toLocaleString('vi-VN')} đ</td>
+                      <td style={{ textAlign: 'right', fontWeight: 'bold' }}>{lineTotal.toLocaleString('vi-VN')} đ</td>
+                      <td>{item.usage}</td>
+                    </tr>
+                  )
+                })}
+                {prescriptionItems.length === 0 && (
+                  <tr>
+                    <td colSpan="6" style={{ textAlign: 'center', padding: '10px' }}>Chưa kê thuốc</td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+
+            {/* Khung Bảng Kê Viện Phí & Mã VietQR */}
+            <div style={{ border: '1.5px solid #111', borderRadius: '6px', padding: '12px 14px', marginBottom: '16px', background: '#fafafa' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <div style={{ flex: 1, paddingRight: '16px', fontSize: '10.5pt', lineHeight: '1.7' }}>
+                  <div style={{ fontWeight: 'bold', fontSize: '11pt', textTransform: 'uppercase', marginBottom: '4px', color: '#175cdd' }}>
+                    PHIẾU THU THAM KHẢO & VIỆN PHÍ
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                    <span>1. Tiền công khám chuyên khoa:</span>
+                    <strong>{CONSULTATION_FEE.toLocaleString('vi-VN')} đ</strong>
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                    <span>2. Tiền thuốc trong toa ({prescriptionItems.length} loại):</span>
+                    <strong>{totalMedFee.toLocaleString('vi-VN')} đ</strong>
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', borderTop: '1px dashed #555', marginTop: '6px', paddingTop: '6px', fontSize: '11.5pt' }}>
+                    <span style={{ fontWeight: 'bold' }}>TỔNG CỘNG THANH TOÁN:</span>
+                    <strong style={{ color: '#b91c1c', fontSize: '12.5pt' }}>{totalInvoiceAmount.toLocaleString('vi-VN')} đ</strong>
+                  </div>
+                  <div style={{ fontSize: '8.5pt', color: '#444', marginTop: '4px', fontStyle: 'italic' }}>
+                    * Quét mã VietQR bằng App Ngân Hàng để chuyển khoản hoặc nộp tiền mặt tại Quầy Thu Ngân.
+                  </div>
+                </div>
+
+                <div style={{ width: '150px', textAlign: 'center', borderLeft: '1px solid #ccc', paddingLeft: '14px' }}>
+                  <div style={{ fontSize: '8.5pt', fontWeight: 'bold', color: '#175cdd', marginBottom: '2px' }}>
+                    QUÉT MÃ VIETQR
+                  </div>
+                  <img 
+                    src={vietQrUrl} 
+                    alt="Mã QR Thanh Toán" 
+                    style={{ width: '115px', height: '115px', objectFit: 'contain', border: '1px solid #ddd', borderRadius: '4px', padding: '2px', background: '#fff' }} 
+                  />
+                  <div style={{ fontSize: '8pt', fontWeight: 'bold', marginTop: '2px' }}>
+                    MB BANK: 02838389999
+                  </div>
+                  <div style={{ fontSize: '7pt', color: '#555' }}>
+                    PK PHU LOI BAO
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div style={{ fontSize: '10.5pt', marginBottom: '20px', lineHeight: '1.5' }}>
+              <div><strong>* Lời dặn của bác sĩ:</strong> {advice || 'Uống thuốc đúng giờ, tuân thủ đúng liều lượng.'}</div>
+              {followUpDate && <div><strong>* Hẹn ngày tái khám:</strong> {new Date(followUpDate).toLocaleDateString('vi-VN')}</div>}
+            </div>
+
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginTop: '24px' }}>
+              <div style={{ fontSize: '9pt', fontStyle: 'italic', maxWidth: '320px', lineHeight: '1.5' }}>
+                * Khám lại xin mang theo đơn thuốc này.<br />
+                * Đơn thuốc có giá trị mua trong vòng 05 ngày kể từ ngày kê đơn.<br />
+                * Bệnh nhân sau khi thanh toán vui lòng sang Quầy Dược nhận thuốc.
+              </div>
+              <div style={{ textAlign: 'center', minWidth: '220px' }}>
+                <div style={{ fontSize: '10pt', fontStyle: 'italic' }}>Ngày {new Date().getDate()} tháng {new Date().getMonth() + 1} năm {new Date().getFullYear()}</div>
+                <div style={{ fontWeight: 'bold', margin: '4px 0 55px 0' }}>Bác sĩ khám bệnh</div>
+                <div style={{ fontWeight: 'bold', fontSize: '11.5pt' }}>BS. CKII. Trần Văn Hùng</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ================= KHỐI ĐƠN THUỐC CHUYÊN IN (KHI KHÔNG MỞ MODAL XEM TRƯỚC) ================= */}
+      {!showPrintModal && (
+        <div className="prescription-print-document print-only">
+          <div style={{ textAlign: 'center', borderBottom: '2px solid #000', paddingBottom: '12px', marginBottom: '16px' }}>
+            <div style={{ fontWeight: 'bold', fontSize: '15pt', textTransform: 'uppercase' }}>PHÒNG KHÁM ĐA KHOA PHÚ LỢI BẢO</div>
+            <div style={{ fontSize: '10pt', color: '#444' }}>Địa chỉ: 123 Nguyễn Tri Phương, Phường 7, Quận 5, TP.HCM • Hotline: (028) 3838 9999</div>
+            <h2 style={{ fontSize: '18pt', fontWeight: 'bold', margin: '14px 0 6px 0', textTransform: 'uppercase' }}>ĐƠN THUỐC ĐIỆN TỬ</h2>
+            <div style={{ fontSize: '10pt', fontStyle: 'italic' }}>
+              Mã đơn: DT-{currentPatient.patientCode} • Ngày kê: {new Date().toLocaleDateString('vi-VN')}
+            </div>
+          </div>
+
+          <div style={{ marginBottom: '16px', fontSize: '11pt', lineHeight: '1.6' }}>
+            <div>Họ và tên bệnh nhân: <strong>{currentPatient.name}</strong> • Tuổi: <strong>{currentPatient.age}</strong> • Giới tính: <strong>{currentPatient.gender}</strong></div>
+            <div>Mã hồ sơ: <strong>{currentPatient.patientCode}</strong> • Điện thoại: <strong>{currentPatient.phone}</strong></div>
+            <div>Địa chỉ: {currentPatient.address}</div>
+            <div>Chẩn đoán: <strong>{diagnosis}</strong> (Mã ICD: {icdCode.split(' - ')[0]})</div>
+          </div>
+
+          <table style={{ width: '100%', borderCollapse: 'collapse', marginBottom: '16px' }}>
+            <thead>
               <tr>
-                <td colSpan="6" style={{ textAlign: 'center', padding: '10px' }}>Chưa kê thuốc</td>
+                <th style={{ width: '35px', textAlign: 'center' }}>STT</th>
+                <th>Tên Thuốc / Hàm Lượng</th>
+                <th style={{ width: '70px', textAlign: 'center' }}>Số Lượng</th>
+                <th style={{ width: '90px', textAlign: 'right' }}>Đơn Giá</th>
+                <th style={{ width: '100px', textAlign: 'right' }}>Thành Tiền</th>
+                <th>Cách Dùng & Liều Lượng</th>
               </tr>
-            )}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {prescriptionItems.map((item, idx) => {
+                const unitPrice = getMedPrice(item.medicine)
+                const lineTotal = unitPrice * (item.quantity || 1)
+                return (
+                  <tr key={item.id}>
+                    <td style={{ textAlign: 'center', fontWeight: 'bold' }}>{idx + 1}</td>
+                    <td style={{ fontWeight: 'bold' }}>{item.medicine}</td>
+                    <td style={{ textAlign: 'center', fontWeight: 'bold' }}>{item.quantity} {item.unit}</td>
+                    <td style={{ textAlign: 'right' }}>{unitPrice.toLocaleString('vi-VN')} đ</td>
+                    <td style={{ textAlign: 'right', fontWeight: 'bold' }}>{lineTotal.toLocaleString('vi-VN')} đ</td>
+                    <td>{item.usage}</td>
+                  </tr>
+                )
+              })}
+              {prescriptionItems.length === 0 && (
+                <tr>
+                  <td colSpan="6" style={{ textAlign: 'center', padding: '10px' }}>Chưa kê thuốc</td>
+                </tr>
+              )}
+            </tbody>
+          </table>
 
-        {/* ================= KHUNG BẢNG KÊ VIỆN PHÍ & MÃ VIETQR THANH TOÁN ================= */}
-        <div style={{ border: '1.5px solid #111', borderRadius: '6px', padding: '12px 14px', marginBottom: '16px', background: '#fafafa' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            
-            {/* Cột Trái: Bảng kê chi phí */}
-            <div style={{ flex: 1, paddingRight: '16px', fontSize: '10.5pt', lineHeight: '1.7' }}>
-              <div style={{ fontWeight: 'bold', fontSize: '11pt', textTransform: 'uppercase', marginBottom: '4px', color: '#175cdd' }}>
-                PHIẾU THU THAM KHẢO & VIỆN PHÍ
+          {/* ================= KHUNG BẢNG KÊ VIỆN PHÍ & MÃ VIETQR THANH TOÁN ================= */}
+          <div style={{ border: '1.5px solid #111', borderRadius: '6px', padding: '12px 14px', marginBottom: '16px', background: '#fafafa' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              
+              {/* Cột Trái: Bảng kê chi phí */}
+              <div style={{ flex: 1, paddingRight: '16px', fontSize: '10.5pt', lineHeight: '1.7' }}>
+                <div style={{ fontWeight: 'bold', fontSize: '11pt', textTransform: 'uppercase', marginBottom: '4px', color: '#175cdd' }}>
+                  PHIẾU THU THAM KHẢO & VIỆN PHÍ
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                  <span>1. Tiền công khám chuyên khoa:</span>
+                  <strong>{CONSULTATION_FEE.toLocaleString('vi-VN')} đ</strong>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                  <span>2. Tiền thuốc trong toa ({prescriptionItems.length} loại):</span>
+                  <strong>{totalMedFee.toLocaleString('vi-VN')} đ</strong>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', borderTop: '1px dashed #555', marginTop: '6px', paddingTop: '6px', fontSize: '11.5pt' }}>
+                  <span style={{ fontWeight: 'bold' }}>TỔNG CỘNG THANH TOÁN:</span>
+                  <strong style={{ color: '#b91c1c', fontSize: '12.5pt' }}>{totalInvoiceAmount.toLocaleString('vi-VN')} đ</strong>
+                </div>
+                <div style={{ fontSize: '8.5pt', color: '#444', marginTop: '4px', fontStyle: 'italic' }}>
+                  * Quét mã VietQR bằng App Ngân Hàng để chuyển khoản hoặc nộp tiền mặt tại Quầy Thu Ngân.
+                </div>
               </div>
-              <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                <span>1. Tiền công khám chuyên khoa:</span>
-                <strong>{CONSULTATION_FEE.toLocaleString('vi-VN')} đ</strong>
+
+              {/* Cột Phải: Mã VietQR */}
+              <div style={{ width: '150px', textAlign: 'center', borderLeft: '1px solid #ccc', paddingLeft: '14px' }}>
+                <div style={{ fontSize: '8.5pt', fontWeight: 'bold', color: '#175cdd', marginBottom: '2px' }}>
+                  QUÉT MÃ VIETQR
+                </div>
+                <img 
+                  src={vietQrUrl} 
+                  alt="Mã QR Thanh Toán" 
+                  style={{ width: '115px', height: '115px', objectFit: 'contain', border: '1px solid #ddd', borderRadius: '4px', padding: '2px', background: '#fff' }} 
+                />
+                <div style={{ fontSize: '8pt', fontWeight: 'bold', marginTop: '2px' }}>
+                  MB BANK: 02838389999
+                </div>
+                <div style={{ fontSize: '7pt', color: '#555' }}>
+                  PK PHU LOI BAO
+                </div>
               </div>
-              <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                <span>2. Tiền thuốc trong toa ({prescriptionItems.length} loại):</span>
-                <strong>{totalMedFee.toLocaleString('vi-VN')} đ</strong>
-              </div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', borderTop: '1px dashed #555', marginTop: '6px', paddingTop: '6px', fontSize: '11.5pt' }}>
-                <span style={{ fontWeight: 'bold' }}>TỔNG CỘNG THANH TOÁN:</span>
-                <strong style={{ color: '#b91c1c', fontSize: '12.5pt' }}>{totalInvoiceAmount.toLocaleString('vi-VN')} đ</strong>
-              </div>
-              <div style={{ fontSize: '8.5pt', color: '#444', marginTop: '4px', fontStyle: 'italic' }}>
-                * Quét mã VietQR bằng App Ngân Hàng để chuyển khoản hoặc nộp tiền mặt tại Quầy Thu Ngân.
-              </div>
+
             </div>
+          </div>
 
-            {/* Cột Phải: Mã VietQR */}
-            <div style={{ width: '150px', textAlign: 'center', borderLeft: '1px solid #ccc', paddingLeft: '14px' }}>
-              <div style={{ fontSize: '8.5pt', fontWeight: 'bold', color: '#175cdd', marginBottom: '2px' }}>
-                QUÉT MÃ VIETQR
-              </div>
-              <img 
-                src={vietQrUrl} 
-                alt="Mã QR Thanh Toán" 
-                style={{ width: '115px', height: '115px', objectFit: 'contain', border: '1px solid #ddd', borderRadius: '4px', padding: '2px', background: '#fff' }} 
-              />
-              <div style={{ fontSize: '8pt', fontWeight: 'bold', marginTop: '2px' }}>
-                MB BANK: 02838389999
-              </div>
-              <div style={{ fontSize: '7pt', color: '#555' }}>
-                PK PHU LOI BAO
-              </div>
+          <div style={{ fontSize: '10.5pt', marginBottom: '20px', lineHeight: '1.5' }}>
+            <div><strong>* Lời dặn của bác sĩ:</strong> {advice || 'Uống thuốc đúng giờ, tuân thủ đúng liều lượng.'}</div>
+            {followUpDate && <div><strong>* Hẹn ngày tái khám:</strong> {new Date(followUpDate).toLocaleDateString('vi-VN')}</div>}
+          </div>
+
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginTop: '24px' }}>
+            <div style={{ fontSize: '9pt', fontStyle: 'italic', maxWidth: '320px', lineHeight: '1.5' }}>
+              * Khám lại xin mang theo đơn thuốc này.<br />
+              * Đơn thuốc có giá trị mua trong vòng 05 ngày kể từ ngày kê đơn.<br />
+              * Bệnh nhân sau khi thanh toán vui lòng sang Quầy Dược nhận thuốc.
             </div>
-
+            <div style={{ textAlign: 'center', minWidth: '220px' }}>
+              <div style={{ fontSize: '10pt', fontStyle: 'italic' }}>Ngày {new Date().getDate()} tháng {new Date().getMonth() + 1} năm {new Date().getFullYear()}</div>
+              <div style={{ fontWeight: 'bold', margin: '4px 0 55px 0' }}>Bác sĩ khám bệnh</div>
+              <div style={{ fontWeight: 'bold', fontSize: '11.5pt' }}>BS. CKII. Trần Văn Hùng</div>
+            </div>
           </div>
         </div>
-
-        <div style={{ fontSize: '10.5pt', marginBottom: '20px', lineHeight: '1.5' }}>
-          <div><strong>* Lời dặn của bác sĩ:</strong> {advice || 'Uống thuốc đúng giờ, tuân thủ đúng liều lượng.'}</div>
-          {followUpDate && <div><strong>* Hẹn ngày tái khám:</strong> {new Date(followUpDate).toLocaleDateString('vi-VN')}</div>}
-        </div>
-
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginTop: '24px' }}>
-          <div style={{ fontSize: '9pt', fontStyle: 'italic', maxWidth: '320px', lineHeight: '1.5' }}>
-            * Khám lại xin mang theo đơn thuốc này.<br />
-            * Đơn thuốc có giá trị mua trong vòng 05 ngày kể từ ngày kê đơn.<br />
-            * Bệnh nhân sau khi thanh toán vui lòng sang Quầy Dược nhận thuốc.
-          </div>
-          <div style={{ textAlign: 'center', minWidth: '220px' }}>
-            <div style={{ fontSize: '10pt', fontStyle: 'italic' }}>Ngày {new Date().getDate()} tháng {new Date().getMonth() + 1} năm {new Date().getFullYear()}</div>
-            <div style={{ fontWeight: 'bold', margin: '4px 0 55px 0' }}>Bác sĩ khám bệnh</div>
-            <div style={{ fontWeight: 'bold', fontSize: '11.5pt' }}>BS. CKII. Trần Văn Hùng</div>
-          </div>
-        </div>
-      </div>
+      )}
     </DoctorLayout>
   )
 }
