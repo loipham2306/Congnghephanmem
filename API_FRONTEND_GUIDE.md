@@ -1,6 +1,6 @@
 # 📋 TÀI LIỆU TÍCH HỢP API BACKEND CHO FRONTEND
 > **Hệ Thống Quản Lý Phòng Khám (Clinic Management System)**  
-> **Cập nhật ngày:** 09/10/2026 | **Phiên bản API:** v1.0.0
+> **Cập nhật ngày:** 15/10/2026 | **Phiên bản API:** v1.1.0
 
 ---
 
@@ -1594,7 +1594,451 @@ Phân hệ phục vụ hiển thị bảng giá dịch vụ khám bệnh, danh m
 
 ---
 
-## 🛠️ 10. MẪU CODE GỌI API CHO FRONTEND (AXIOS INSTANCE)
+## 📅 10. PHÂN HỆ ĐẶT LỊCH KHÁM TRỰC TUYẾN & TIẾP ĐÓN (`/api/appointments`)
+
+### 10.1. Đặt lịch khám trực tuyến
+* **Endpoint:** `POST /api/appointments`
+* **Quyền:** `BenhNhan` (Hoặc `Admin`, `LeTan` đặt hộ bệnh nhân)
+* **Quy tắc nghiệp vụ:**
+  - Bác sĩ phải có lịch trực làm việc trong ngày được chọn.
+  - Khung giờ khám phải nằm trong khoảng thời gian ca trực của bác sĩ.
+  - Tránh đặt trùng khung giờ: cùng một bác sĩ không thể nhận 2 lịch hẹn trùng giờ hoặc cách nhau dưới 15 phút.
+  - Bệnh nhân không được đặt trùng giờ với một lịch hẹn khác của chính mình.
+* **Request Body:**
+```json
+{
+  "mabs": 1,
+  "mabn": 1,               // Bắt buộc nếu Admin/LeTan đặt hộ; Bệnh nhân tự đặt không cần gửi trường này
+  "ngayhen": "2026-10-25", // Định dạng YYYY-MM-DD (Không được ở quá khứ)
+  "giohen": "08:30",       // Định dạng HH:mm
+  "lydokham": "Tái khám kiểm tra huyết áp và đau ngực"
+}
+```
+* **Response Thành công (201 Created):**
+```json
+{
+  "status": "success",
+  "message": "Đặt lịch khám thành công! Vui lòng chờ lễ tân xác nhận.",
+  "data": {
+    "malh": 12,
+    "mabn": 1,
+    "mabs": 1,
+    "ngayhen": "2026-10-25T00:00:00.000Z",
+    "giohen": "08:30",
+    "lydokham": "Tái khám kiểm tra huyết áp và đau ngực",
+    "trangthai": "ChoXacNhan",
+    "bacsi": {
+      "mabs": 1,
+      "hoten": "BS. CKI Nguyễn Văn A",
+      "chuyenkhoa": { "tenchuyenkhoa": "Khoa Nội Tim Mạch" }
+    }
+  }
+}
+```
+
+---
+
+### 10.2. Bệnh nhân xem danh sách lịch hẹn của mình
+* **Endpoint:** `GET /api/appointments/my-appointments`
+* **Quyền:** `BenhNhan`
+* **Response Thành công (200 OK):**
+```json
+{
+  "status": "success",
+  "message": "Lấy danh sách lịch hẹn của bạn thành công",
+  "total": 2,
+  "data": [
+    {
+      "malh": 12,
+      "ngayhen": "2026-10-25",
+      "giohen": "08:30",
+      "lydokham": "Tái khám kiểm tra huyết áp và đau ngực",
+      "trangthai": "ChoXacNhan",
+      "bacsi": {
+        "mabs": 1,
+        "hoten": "BS. CKI Nguyễn Văn A",
+        "chuyenkhoa": { "tenchuyenkhoa": "Khoa Nội Tim Mạch" }
+      }
+    }
+  ]
+}
+```
+
+---
+
+### 10.3. Tra cứu danh sách lịch hẹn phòng khám
+* **Endpoint:** `GET /api/appointments`
+* **Quyền:** `Admin`, `LeTan`, `BacSi`
+* **Query Parameters:**
+  - `ngay`: Lọc theo ngày hẹn (VD: `2026-10-25`)
+  - `mabs`: Lọc theo bác sĩ (VD: `1`)
+  - `mabn`: Lọc theo bệnh nhân (VD: `1`)
+  - `trangthai`: Lọc theo trạng thái (`ChoXacNhan` | `DaXacNhan` | `DaTiepDon` | `DaKham` | `DaHuy`)
+* **Response Thành công (200 OK):**
+```json
+{
+  "status": "success",
+  "message": "Lấy danh sách lịch hẹn thành công",
+  "total": 1,
+  "data": [
+    {
+      "malh": 12,
+      "ngayhen": "2026-10-25",
+      "giohen": "08:30",
+      "lydokham": "Tái khám",
+      "trangthai": "ChoXacNhan",
+      "benhnhan": {
+        "mabn": 1,
+        "hoten": "Trần Thị B",
+        "sdt": "0988776655"
+      },
+      "bacsi": {
+        "mabs": 1,
+        "hoten": "BS. CKI Nguyễn Văn A"
+      }
+    }
+  ]
+}
+```
+
+---
+
+### 10.4. Cập nhật trạng thái lịch hẹn (Tiếp đón, Duyệt, Hủy)
+* **Endpoint:** `PATCH /api/appointments/:id/status`
+* **Quyền:** `Admin`, `LeTan`
+* **Quy trình chuyển đổi trạng thái (`trangthai`):**
+  - `ChoXacNhan` -> `DaXacNhan`: Lễ tân gọi điện xác nhận người bệnh đến khám.
+  - `DaXacNhan` -> `DaTiepDon`: Bệnh nhân có mặt tại phòng khám để làm thủ tục vào khám.
+  - `DaTiepDon` -> `DaKham`: Bác sĩ hoàn thành phiên khám.
+  - Bất kỳ trạng thái nào trước khám -> `DaHuy`: Hủy lịch khám (kèm lý do).
+* **Request Body:**
+```json
+{
+  "trangthai": "DaTiepDon", // "ChoXacNhan" | "DaXacNhan" | "DaTiepDon" | "DaKham" | "DaHuy"
+  "lydohuy": ""             // Bắt buộc nếu trangthai = "DaHuy"
+}
+```
+
+---
+
+### 10.5. Đổi lịch hẹn (Reschedule)
+* **Endpoint:** `PATCH /api/appointments/:id/reschedule`
+* **Quyền:** `Admin`, `LeTan`, `BenhNhan` (Bệnh nhân chỉ đổi được lịch của mình khi còn ở trạng thái `ChoXacNhan` hoặc `DaXacNhan`)
+* **Request Body:**
+```json
+{
+  "ngayhen": "2026-10-26",
+  "giohen": "09:00",
+  "mabs": 1 // Tùy chọn nếu muốn đổi sang bác sĩ khác
+}
+```
+
+---
+
+### 10.6. Hủy lịch hẹn
+* **Endpoint:** `DELETE /api/appointments/:id/cancel`
+* **Quyền:** `Admin`, `LeTan`, `BenhNhan`
+* **Request Body:**
+```json
+{
+  "lydohuy": "Bận việc đột xuất không thể đến khám đúng hẹn"
+}
+```
+
+---
+
+## 🧾 11. PHÂN HỆ HÓA ĐƠN VIỆN PHÍ & THANH TOÁN (`/api/invoices`)
+
+### 11.1. Khởi tạo hóa đơn viện phí từ phiên khám bệnh
+* **Endpoint:** `POST /api/invoices`
+* **Quyền:** `Admin`, `LeTan`
+* **Cơ chế tính toán tự động qua Database Trigger:**
+  - Hệ thống tự động quét chi tiết các dịch vụ kỹ thuật đã chỉ định (`ChiTietDichVu`) và đơn thuốc (`ChiTietDonThuoc`) từ phiên khám `malsk`.
+  - Tự động tạo các bản ghi chi tiết viện phí tương ứng trong bảng `ChiTietHoaDon`.
+  - **Trigger PostgreSQL `trg_cthd_update_tongtien`** sẽ tự động tính tổng tiền `tongtien` của hóa đơn ngay tại Database.
+* **Request Body:**
+```json
+{
+  "malsk": 101,                         // Mã lịch sử khám bệnh
+  "phuongthucthanhtoan": "TienMat",     // "TienMat" | "ChuyenKhoan" | "TheNganHang" | "ViDienTu"
+  "ghichu": "Hóa đơn khám bệnh và thuốc"
+}
+```
+* **Response Thành công (201 Created):**
+```json
+{
+  "status": "success",
+  "message": "Khởi tạo hóa đơn viện phí thành công",
+  "data": {
+    "mahd": 55,
+    "malsk": 101,
+    "ngaylap": "2026-10-25T09:30:00.000Z",
+    "tongtien": 650000,
+    "trangthaithanhtoan": "ChuaThanhToan",
+    "phuongthucthanhtoan": "TienMat",
+    "chitiethoadon": [
+      {
+        "macthd": 1,
+        "noidung": "Dịch vụ: Khám Nội tổng quát",
+        "soluong": 1,
+        "dongia": 150000,
+        "thanhtien": 150000,
+        "loaichiphi": "DichVu"
+      },
+      {
+        "macthd": 2,
+        "noidung": "Thuốc: Paracetamol 500mg (Viên)",
+        "soluong": 20,
+        "dongia": 25000,
+        "thanhtien": 500000,
+        "loaichiphi": "Thuoc"
+      }
+    ]
+  }
+}
+```
+
+---
+
+### 11.2. Thêm khoản mục viện phí bổ sung vào hóa đơn
+* **Endpoint:** `POST /api/invoices/:id/items`
+* **Quyền:** `Admin`, `LeTan`
+* **Lưu ý:** Chỉ thêm được khi hóa đơn ở trạng thái `ChuaThanhToan`. Trigger DB sẽ tự động cộng dồn `tongtien`.
+* **Request Body:**
+```json
+{
+  "noidung": "Phí vật tư tiêu hao / Băng gạc vô trùng",
+  "soluong": 2,
+  "dongia": 25000,
+  "loaichiphi": "Khac" // "DichVu" | "Thuoc" | "KhamBenh" | "Khac"
+}
+```
+
+---
+
+### 11.3. Xóa khoản mục viện phí khỏi hóa đơn
+* **Endpoint:** `DELETE /api/invoices/:id/items/:itemId`
+* **Quyền:** `Admin`, `LeTan`
+* **Lưu ý:** Chỉ xóa được khi chưa thanh toán. Trigger DB sẽ tự động trừ `tongtien`.
+
+---
+
+### 11.4. Thu ngân xác nhận thanh toán hóa đơn
+* **Endpoint:** `PATCH /api/invoices/:id/pay`
+* **Quyền:** `Admin`, `LeTan`
+* **Request Body:**
+```json
+{
+  "phuongthucthanhtoan": "ChuyenKhoan", // "TienMat" | "ChuyenKhoan" | "TheNganHang" | "ViDienTu"
+  "ghichu": "Đã nhận thanh toán qua QR Code VietQR"
+}
+```
+
+---
+
+### 11.5. Hủy hóa đơn viện phí
+* **Endpoint:** `PATCH /api/invoices/:id/cancel`
+* **Quyền:** `Admin`
+* **Request Body:**
+```json
+{
+  "lydohuy": "Bác sĩ chỉ định hủy khám hoàn lại tiền"
+}
+```
+
+---
+
+### 11.6. Danh sách hóa đơn viện phí
+* **Endpoint:** `GET /api/invoices`
+* **Quyền:** `Admin`, `LeTan`
+* **Query Parameters:**
+  - `page`: Trang hiện tại (Mặc định: 1)
+  - `limit`: Số bản ghi mỗi trang (Mặc định: 20)
+  - `trangthaithanhtoan`: `ChuaThanhToan` | `DaThanhToan` | `DaHuy`
+  - `startDate`: Ngày bắt đầu lọc theo ngày lập (`YYYY-MM-DD`)
+  - `endDate`: Ngày kết thúc lọc (`YYYY-MM-DD`)
+  - `mabn`: Lọc theo mã bệnh nhân
+
+---
+
+### 11.7. Bệnh nhân xem lịch sử hóa đơn của mình
+* **Endpoint:** `GET /api/invoices/my-invoices`
+* **Quyền:** `BenhNhan`
+* **Response Thành công (200 OK):** Trả về danh sách tất cả các hóa đơn viện phí của tài khoản đang đăng nhập.
+
+---
+
+### 11.8. Xem chi tiết hóa đơn viện phí
+* **Endpoint:** `GET /api/invoices/:id`
+* **Quyền:** `Admin`, `LeTan`, hoặc chính `BenhNhan` sở hữu hóa đơn
+
+---
+
+## 📊 12. PHÂN HỆ BÁO CÁO & THỐNG KÊ DOANH THU ADMIN (`/api/statistics`)
+
+> ⚠️ **Lưu ý phân quyền:** Toàn bộ API trong phân hệ Thống kê yêu cầu Header Token có vai trò `Admin`.
+
+### 12.1. Thống kê tổng quan Dashboard phòng khám
+* **Endpoint:** `GET /api/statistics/overview`
+* **Quyền:** `Admin`
+* **Response Thành công (200 OK):**
+```json
+{
+  "status": "success",
+  "message": "Lấy số liệu tổng quan thành công",
+  "data": {
+    "tongbenhnhan": 1280,
+    "tongbacsi": 24,
+    "lichhen_homnay": 45,
+    "lichhen_choxacnhan": 8,
+    "luotkham_homnay": 38,
+    "doanhthu_homnay": 18500000,
+    "doanhthu_thangnay": 340200000,
+    "tongdoanhthu": 1420500000,
+    "hoadon_chuathanhtoan": 5
+  }
+}
+```
+
+---
+
+### 12.2. Báo cáo doanh thu theo thời gian & cơ cấu thu viện phí
+* **Endpoint:** `GET /api/statistics/revenue`
+* **Quyền:** `Admin`
+* **Query Parameters:**
+  - `startDate`: `YYYY-MM-DD` (Mặc định: 30 ngày trước)
+  - `endDate`: `YYYY-MM-DD` (Mặc định: Hôm nay)
+  - `groupBy`: `day` (mặc định) hoặc `month`
+* **Response Thành công (200 OK):**
+```json
+{
+  "status": "success",
+  "message": "Lấy báo cáo doanh thu thành công",
+  "data": {
+    "tong_doanhthu": 45200000,
+    "tong_hoadon": 62,
+    "theo_phuongthuc": {
+      "TienMat": 20100000,
+      "ChuyenKhoan": 22300000,
+      "TheNganHang": 2800000,
+      "ViDienTu": 0
+    },
+    "theo_loaichiphi": {
+      "KhamBenh": 15000000,
+      "DichVu": 18200000,
+      "Thuoc": 12000000,
+      "Khac": 0
+    },
+    "dong_thoiluan": [
+      {
+        "moc_thoigian": "2026-10-20",
+        "doanhthu": 12500000,
+        "so_hoadon": 15
+      },
+      {
+        "moc_thoigian": "2026-10-21",
+        "doanhthu": 15800000,
+        "so_hoadon": 22
+      }
+    ]
+  }
+}
+```
+
+---
+
+### 12.3. Báo cáo số lượt khám bệnh theo chuyên khoa & bác sĩ
+* **Endpoint:** `GET /api/statistics/examinations`
+* **Quyền:** `Admin`
+* **Query Parameters:** `startDate`, `endDate`
+* **Response Thành công (200 OK):**
+```json
+{
+  "status": "success",
+  "message": "Lấy thống kê lượt khám thành công",
+  "data": {
+    "tong_luotkham": 120,
+    "theo_chuyenkhoa": [
+      {
+        "machuyenkhoa": 1,
+        "tenchuyenkhoa": "Khoa Nội Tim Mạch",
+        "so_luotkham": 48
+      },
+      {
+        "machuyenkhoa": 2,
+        "tenchuyenkhoa": "Khoa Nhi",
+        "so_luotkham": 35
+      }
+    ],
+    "theo_bacsi": [
+      {
+        "mabs": 1,
+        "hoten": "BS. CKI Nguyễn Văn A",
+        "so_luotkham": 42
+      }
+    ],
+    "theo_ngay": [
+      { "ngay": "2026-10-20", "so_luotkham": 22 }
+    ]
+  }
+}
+```
+
+---
+
+### 12.4. Báo cáo Top dịch vụ kỹ thuật được chỉ định nhiều nhất
+* **Endpoint:** `GET /api/statistics/top-services`
+* **Quyền:** `Admin`
+* **Query Parameters:**
+  - `startDate`, `endDate`
+  - `limit`: Số lượng top cần lấy (Mặc định: 5, tối đa: 50)
+* **Response Thành công (200 OK):**
+```json
+{
+  "status": "success",
+  "message": "Lấy danh sách top dịch vụ thành công",
+  "data": [
+    {
+      "madv": 1,
+      "tendv": "Siêu âm Tim Doppler màu",
+      "dongia": 350000,
+      "solan_chidinh": 84,
+      "tong_soluong": 84,
+      "tong_doanhthu": 29400000
+    }
+  ]
+}
+```
+
+---
+
+### 12.5. Báo cáo Top thuốc kê đơn nhiều nhất
+* **Endpoint:** `GET /api/statistics/top-medicines`
+* **Quyền:** `Admin`
+* **Query Parameters:**
+  - `startDate`, `endDate`
+  - `limit`: Mặc định 5
+* **Response Thành công (200 OK):**
+```json
+{
+  "status": "success",
+  "message": "Lấy danh sách top thuốc kê đơn thành công",
+  "data": [
+    {
+      "mathuoc": 10,
+      "tenthuoc": "Amlodipine 5mg",
+      "donvitinh": "Viên",
+      "dongia": 3500,
+      "solan_kethuoc": 45,
+      "tong_soluong_xuat": 1350
+    }
+  ]
+}
+```
+
+---
+
+## 🛠️ 13. MẪU CODE GỌI API CHO FRONTEND (AXIOS INSTANCE)
 
 Đoạn mã mẫu cài đặt Axios Interceptor tự động gắn token và xử lý lỗi:
 
@@ -1636,3 +2080,4 @@ axiosClient.interceptors.response.use(
 
 export default axiosClient;
 ```
+
