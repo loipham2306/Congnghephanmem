@@ -12,6 +12,7 @@ const shiftRoutes = require("./routers/shift.router");
 const appointmentRoutes = require("./routers/appointment.router");
 const invoiceRoutes = require("./routers/invoice.router");
 const statisticRoutes = require("./routers/statistic.router");
+const examinationRoutes = require("./routers/examination.router");
 const errorMiddleware = require("./middlewares/error.middleware");
 const app = express();
 
@@ -90,6 +91,9 @@ app.use("/api/invoices", invoiceRoutes);
 
 // Đăng ký router cho báo cáo thống kê và dashboard Admin
 app.use("/api/statistics", statisticRoutes);
+
+// Đăng ký router cho phiếu khám bệnh và chỉ định cận lâm sàng
+app.use("/api/examinations", examinationRoutes);
 
 // ========================================================
 // 4. XỬ LÝ KHI KHÔNG TÌM THẤY ROUTE (404 NOT FOUND)
