@@ -2038,7 +2038,281 @@ Phân hệ phục vụ hiển thị bảng giá dịch vụ khám bệnh, danh m
 
 ---
 
-## 🛠️ 13. MẪU CODE GỌI API CHO FRONTEND (AXIOS INSTANCE)
+## 🩺 13. PHÂN HỆ KHÁM BỆNH & CHỈ ĐỊNH CẬN LÂM SÀNG (`/api/examinations`)
+
+Phân hệ phục vụ Bác sĩ thực hiện khám bệnh, ghi nhận triệu chứng, chẩn đoán, kết luận, chỉ định cận lâm sàng (xét nghiệm, siêu âm, X-quang...), cập nhật kết quả cận lâm sàng và quản lý phiếu khám bệnh.
+
+### 13.1. Tạo phiếu khám bệnh & Chỉ định cận lâm sàng
+* **Endpoint:** `POST /api/examinations`
+* **Quyền:** `BacSi`, `Admin` (`Bearer Token`)
+* **Tính năng:**
+  - Nếu là Bác sĩ đăng nhập, hệ thống tự động gán `mabs` từ tài khoản đăng nhập (chống giả mạo bác sĩ khác).
+  - Tự động liên kết và chuyển trạng thái lịch hẹn (`lichhen`) thành `DaKham` nếu có gửi `malh`.
+  - Thực thi qua Database Transaction đảm bảo tính nguyên tử (Atomic).
+* **Request Body:**
+```json
+{
+  "mabn": 1,
+  "malh": 5,                                      // Tùy chọn: liên kết lịch hẹn nếu có
+  "trieuchung": "Sốt cao 38.5 độ, đau họng, ho có đờm vàng 3 ngày",
+  "chandoan": "Theo dõi Viêm phế quản cấp / Viêm amidan mủ",
+  "ketluan": "Chỉ định chụp X-quang phổi và xét nghiệm tổng phân tích tế bào máu",
+  "services": [                                  // Tùy chọn: chỉ định cận lâm sàng
+    {
+      "madv": 1,                                 // Mã dịch vụ cận lâm sàng
+      "soluong": 1
+    },
+    {
+      "madv": 3,
+      "soluong": 1
+    }
+  ]
+}
+```
+* **Response Thành công (201 Created):**
+```json
+{
+  "success": true,
+  "message": "Tạo phiếu khám bệnh và chỉ định cận lâm sàng thành công!",
+  "data": {
+    "malsk": 12,
+    "mabn": 1,
+    "mabs": 2,
+    "ngay": "2026-10-18T05:00:00.000Z",
+    "trieuchung": "Sốt cao 38.5 độ, đau họng, ho có đờm vàng 3 ngày",
+    "chandoan": "Theo dõi Viêm phế quản cấp / Viêm amidan mủ",
+    "ketluan": "Chỉ định chụp X-quang phổi và xét nghiệm tổng phân tích tế bào máu",
+    "benhnhan": {
+      "mabn": 1,
+      "hoten": "Nguyễn Văn An",
+      "gioitinh": "Nam",
+      "sdt": "0912345678"
+    },
+    "bacsi": {
+      "mabs": 2,
+      "hocham": "Thạc sĩ, Bác sĩ CKI",
+      "hoten": "BS. Trần Văn Bình",
+      "chuyenkhoa": {
+        "mack": 2,
+        "tenchuyenkhoa": "Khoa Tai Mũi Họng"
+      }
+    },
+    "chitietdichvukham": [
+      {
+        "mactdvk": 101,
+        "malsk": 12,
+        "madv": 1,
+        "tendichvu": "Tổng phân tích tế bào máu ngoại vi",
+        "dongia": 120000,
+        "soluong": 1,
+        "thanhtien": 120000,
+        "ketqua": null
+      },
+      {
+        "mactdvk": 102,
+        "malsk": 12,
+        "madv": 3,
+        "tendichvu": "Chụp X-quang ngực thẳng",
+        "dongia": 150000,
+        "soluong": 1,
+        "thanhtien": 150000,
+        "ketqua": null
+      }
+    ]
+  }
+}
+```
+
+---
+
+### 13.2. Lấy danh sách phiếu khám bệnh
+* **Endpoint:** `GET /api/examinations`
+* **Quyền:** `BacSi`, `Admin`, `LeTan` (`Bearer Token`)
+* **Query Parameters (Tùy chọn):**
+  * `mabn` (number): Lọc phiếu khám theo mã bệnh nhân.
+  * `mabs` (number): Lọc phiếu khám theo bác sĩ phụ trách.
+  * `fromDate`, `toDate` (YYYY-MM-DD): Lọc theo khoảng ngày khám.
+  * `search` (string): Tìm kiếm theo tên bệnh nhân, số điện thoại, chẩn đoán, triệu chứng.
+  * `page`, `limit`: Phân trang dữ liệu (Mặc định: `page=1&limit=10`).
+* **Response Thành công (200 OK):**
+```json
+{
+  "success": true,
+  "message": "Lấy danh sách phiếu khám bệnh thành công!",
+  "data": [
+    {
+      "malsk": 12,
+      "mabn": 1,
+      "mabs": 2,
+      "ngay": "2026-10-18T05:00:00.000Z",
+      "chandoan": "Viêm phế quản cấp",
+      "benhnhan": { "mabn": 1, "hoten": "Nguyễn Văn An" },
+      "bacsi": { "mabs": 2, "hoten": "BS. Trần Văn Bình" }
+    }
+  ],
+  "pagination": {
+    "total": 45,
+    "page": 1,
+    "limit": 10,
+    "totalPages": 5
+  }
+}
+```
+
+---
+
+### 13.3. Xem chi tiết phiếu khám bệnh
+* **Endpoint:** `GET /api/examinations/:id`
+* **Quyền:** `BacSi`, `Admin`, `LeTan`, `BenhNhan` (`Bearer Token` - Bệnh nhân chỉ xem được phiếu của chính mình)
+* **Response Thành công (200 OK):**
+```json
+{
+  "success": true,
+  "message": "Lấy thông tin chi tiết phiếu khám bệnh thành công!",
+  "data": {
+    "malsk": 12,
+    "mabn": 1,
+    "mabs": 2,
+    "ngay": "2026-10-18T05:00:00.000Z",
+    "trieuchung": "Sốt cao, đau rát họng",
+    "chandoan": "Viêm phế quản cấp",
+    "ketluan": "Nghỉ ngơi, uống nhiều nước, tái khám sau 5 ngày",
+    "benhnhan": { ... },
+    "bacsi": { ... },
+    "chitietdichvukham": [
+      {
+        "mactdvk": 101,
+        "madv": 1,
+        "tendichvu": "Tổng phân tích tế bào máu ngoại vi",
+        "dongia": 120000,
+        "soluong": 1,
+        "thanhtien": 120000,
+        "ketqua": "Bạch cầu tăng nhẹ: 11.2 G/L"
+      }
+    ],
+    "donthuoc": null,
+    "hoadon": null
+  }
+}
+```
+
+---
+
+### 13.4. Bác sĩ cập nhật phiếu khám bệnh
+* **Endpoint:** `PUT /api/examinations/:id`
+* **Quyền:** `BacSi`, `Admin` (`Bearer Token`)
+* **Request Body:**
+```json
+{
+  "chandoan": "Viêm họng cấp tính do virus",
+  "ketluan": "Không cần dùng kháng sinh, dùng súc họng sát khuẩn và hạ sốt khi cần"
+}
+```
+* **Response Thành công (200 OK):**
+```json
+{
+  "success": true,
+  "message": "Cập nhật phiếu khám bệnh thành công!",
+  "data": { ... }
+}
+```
+
+---
+
+### 13.5. Chỉ định bổ sung dịch vụ cận lâm sàng
+* **Endpoint:** `POST /api/examinations/:id/services`
+* **Quyền:** `BacSi`, `Admin` (`Bearer Token`)
+* **Lưu ý:** Nếu lần khám đã được tạo hóa đơn viện phí trước đó (chưa thanh toán), hệ thống sẽ tự động đồng bộ dịch vụ mới vào hóa đơn. Nếu hóa đơn đã thanh toán thì sẽ chặn và báo lỗi 400.
+* **Request Body:**
+```json
+{
+  "services": [
+    {
+      "madv": 5,
+      "soluong": 1
+    }
+  ]
+}
+```
+* **Response Thành công (200 OK):**
+```json
+{
+  "success": true,
+  "message": "Chỉ định bổ sung dịch vụ cận lâm sàng thành công!",
+  "data": { ... }
+}
+```
+
+---
+
+### 13.6. Cập nhật kết quả cận lâm sàng
+* **Endpoint:** `PUT /api/examinations/:id/services/:detailId`
+* **Quyền:** `BacSi`, `Admin`, `YTa` (`Bearer Token`)
+* **Request Body:**
+```json
+{
+  "ketqua": "Hình ảnh thâm nhiễm nhẹ rốn phổi 2 bên, không thấy tràn dịch màng phổi"
+}
+```
+* **Response Thành công (200 OK):**
+```json
+{
+  "success": true,
+  "message": "Cập nhật kết quả cận lâm sàng thành công!",
+  "data": {
+    "mactdvk": 102,
+    "malsk": 12,
+    "madv": 3,
+    "tendichvu": "Chụp X-quang ngực thẳng",
+    "dongia": 150000,
+    "soluong": 1,
+    "ketqua": "Hình ảnh thâm nhiễm nhẹ rốn phổi 2 bên, không thấy tràn dịch màng phổi"
+  }
+}
+```
+
+---
+
+### 13.7. Hủy một chỉ định cận lâm sàng khỏi phiếu khám
+* **Endpoint:** `DELETE /api/examinations/:id/services/:detailId`
+* **Quyền:** `BacSi`, `Admin` (`Bearer Token`)
+* **Lưu ý an toàn:** Không thể xóa dịch vụ cận lâm sàng nếu lần khám bệnh đã hoàn tất thanh toán hóa đơn viện phí.
+* **Response Thành công (200 OK):**
+```json
+{
+  "success": true,
+  "message": "Hủy chỉ định dịch vụ \"Chụp X-quang ngực thẳng\" thành công!",
+  "data": {
+    "mactdvk": 102,
+    "malsk": 12,
+    "madv": 3,
+    "tendichvu": "Chụp X-quang ngực thẳng"
+  }
+}
+```
+
+---
+
+### 13.8. Xóa phiếu khám bệnh (Safe Delete Guard)
+* **Endpoint:** `DELETE /api/examinations/:id`
+* **Quyền:** `Admin`, `BacSi` (`Bearer Token`)
+* **Lưu ý an toàn:** Chỉ xóa được khi phiếu khám chưa thanh toán viện phí và chưa kê đơn thuốc.
+* **Response Thành công (200 OK):**
+```json
+{
+  "success": true,
+  "message": "Xóa phiếu khám bệnh #12 thành công!",
+  "data": {
+    "malsk": 12,
+    "mabn": 1,
+    "mabs": 2
+  }
+}
+```
+
+---
+
+## 🛠️ 14. MẪU CODE GỌI API CHO FRONTEND (AXIOS INSTANCE)
 
 Đoạn mã mẫu cài đặt Axios Interceptor tự động gắn token và xử lý lỗi:
 
@@ -2080,4 +2354,5 @@ axiosClient.interceptors.response.use(
 
 export default axiosClient;
 ```
+
 
