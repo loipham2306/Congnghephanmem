@@ -2312,7 +2312,296 @@ Phân hệ phục vụ Bác sĩ thực hiện khám bệnh, ghi nhận triệu c
 
 ---
 
-## 🛠️ 14. MẪU CODE GỌI API CHO FRONTEND (AXIOS INSTANCE)
+## 💊 14. PHÂN HỆ QUẢN LÝ KHO THUỐC & CẢNH BÁO TỒN KHO (`/api/medicines`)
+
+Phân hệ phục vụ quản lý danh mục thuốc, tra cứu bảng giá, nhập xuất tồn kho, kiểm kê điều chỉnh số lượng và tự động cảnh báo thuốc hết hàng hoặc cận hạn sử dụng.
+
+### 14.1. Lấy danh sách thuốc (kèm tìm kiếm & bộ lọc)
+* **Endpoint:** `GET /api/medicines`
+* **Quyền:** Public / All Roles (Không yêu cầu đăng nhập)
+* **Query Parameters (Tùy chọn):**
+  * `search` (string): Tìm kiếm theo tên thuốc hoặc nhà sản xuất.
+  * `minPrice`, `maxPrice` (number): Lọc theo khoảng giá bán.
+  * `stockStatus` (string): Lọc theo trạng thái tồn kho:
+    * `in_stock`: Còn hàng (số lượng tồn > 10).
+    * `low_stock`: Sắp hết hàng (0 < số lượng tồn <= 10).
+    * `out_of_stock`: Hết hàng (số lượng tồn = 0).
+    * `expired`: Đã hết hạn sử dụng.
+    * `near_expiry`: Cận hạn dùng (hết hạn trong 30 ngày tới).
+  * `page`, `limit`: Phân trang dữ liệu (Mặc định: `page=1&limit=10`).
+* **Response Thành công (200 OK):**
+```json
+{
+  "success": true,
+  "message": "Lấy danh sách thuốc thành công!",
+  "data": [
+    {
+      "mathuoc": 1,
+      "tenthuoc": "Paracetamol 500mg",
+      "donvitinh": "Viên",
+      "dongia": 2000,
+      "soluongton": 150,
+      "hansudung": "2027-12-31",
+      "nhasanxuat": "Dược Hậu Giang",
+      "status": {
+        "isOutOfStock": false,
+        "isLowStock": false,
+        "isExpired": false,
+        "isNearExpiry": false,
+        "stockStatusText": "Còn hàng",
+        "expiryStatusText": "Còn hạn"
+      },
+      "_count": {
+        "solankethuoc": 45,
+        "solanxuathoadon": 45
+      }
+    }
+  ],
+  "pagination": {
+    "total": 30,
+    "page": 1,
+    "limit": 10,
+    "totalPages": 3
+  }
+}
+```
+
+---
+
+### 14.2. Cảnh báo tồn kho & hạn dùng thông minh
+* **Endpoint:** `GET /api/medicines/alerts`
+* **Quyền:** `Admin`, `BacSi`, `YTa` (`Bearer Token`)
+* **Query Parameters (Tùy chọn):**
+  * `threshold` (number, mặc định `10`): Ngưỡng số lượng tồn cảnh báo sắp hết hàng.
+  * `days` (number, mặc định `30`): Số ngày tính cận hạn sử dụng.
+* **Response Thành công (200 OK):**
+```json
+{
+  "success": true,
+  "message": "Lấy danh sách cảnh báo tồn kho và hạn sử dụng thành công!",
+  "data": {
+    "summary": {
+      "outOfStockCount": 2,
+      "lowStockCount": 5,
+      "expiredCount": 1,
+      "nearExpiryCount": 4,
+      "totalAlerts": 12,
+      "appliedThreshold": 10,
+      "appliedWarningDays": 30
+    },
+    "alerts": {
+      "outOfStock": [ ... ],
+      "lowStock": [ ... ],
+      "expired": [ ... ],
+      "nearExpiry": [ ... ]
+    }
+  }
+}
+```
+
+---
+
+### 14.3. Thống kê tổng quan kho thuốc (Dashboard Overview)
+* **Endpoint:** `GET /api/medicines/stats/overview`
+* **Quyền:** `Admin` (`Bearer Token`)
+* **Response Thành công (200 OK):**
+```json
+{
+  "success": true,
+  "message": "Lấy dữ liệu thống kê tổng quan kho thuốc thành công!",
+  "data": {
+    "totalMedicineTypes": 30,
+    "totalUnitsInStock": 4520,
+    "totalInventoryValue": 85450000,
+    "statusCounts": {
+      "inStock": 23,
+      "lowStock": 5,
+      "outOfStock": 2,
+      "expired": 1,
+      "nearExpiry": 4
+    }
+  }
+}
+```
+
+---
+
+### 14.4. Xem chi tiết thông tin thuốc
+* **Endpoint:** `GET /api/medicines/:id`
+* **Quyền:** Public / All Roles
+* **Response Thành công (200 OK):**
+```json
+{
+  "success": true,
+  "message": "Lấy thông tin chi tiết thuốc thành công!",
+  "data": {
+    "mathuoc": 1,
+    "tenthuoc": "Paracetamol 500mg",
+    "donvitinh": "Viên",
+    "dongia": 2000,
+    "soluongton": 150,
+    "hansudung": "2027-12-31",
+    "nhasanxuat": "Dược Hậu Giang",
+    "status": {
+      "isOutOfStock": false,
+      "isLowStock": false,
+      "isExpired": false,
+      "isNearExpiry": false,
+      "stockStatusText": "Còn hàng",
+      "expiryStatusText": "Còn hạn"
+    }
+  }
+}
+```
+
+---
+
+### 14.5. Thêm mới thuốc vào danh mục
+* **Endpoint:** `POST /api/medicines`
+* **Quyền:** `Admin` (`Bearer Token`)
+* **Request Body:**
+```json
+{
+  "tenthuoc": "Amoxicillin 500mg",
+  "donvitinh": "Viên",
+  "dongia": 3500,
+  "soluongton": 200,
+  "hansudung": "2027-10-31",
+  "nhasanxuat": "Mekophar"
+}
+```
+* **Response Thành công (201 Created):**
+```json
+{
+  "success": true,
+  "message": "Thêm mới thuốc vào danh mục thành công!",
+  "data": {
+    "mathuoc": 5,
+    "tenthuoc": "Amoxicillin 500mg",
+    "donvitinh": "Viên",
+    "dongia": 3500,
+    "soluongton": 200,
+    "hansudung": "2027-10-31",
+    "nhasanxuat": "Mekophar"
+  }
+}
+```
+
+---
+
+### 14.6. Cập nhật thông tin thuốc
+* **Endpoint:** `PUT /api/medicines/:id`
+* **Quyền:** `Admin` (`Bearer Token`)
+* **Request Body:**
+```json
+{
+  "dongia": 3800,
+  "nhasanxuat": "Mekophar - Dược phẩm Việt Nam"
+}
+```
+* **Response Thành công (200 OK):**
+```json
+{
+  "success": true,
+  "message": "Cập nhật thông tin thuốc thành công!",
+  "data": { ... }
+}
+```
+
+---
+
+### 14.7. Nhập thêm hàng vào kho (Stock Import)
+* **Endpoint:** `POST /api/medicines/:id/import`
+* **Quyền:** `Admin` (`Bearer Token`)
+* **Request Body:**
+```json
+{
+  "soluong": 300,
+  "hansudung": "2028-06-30",
+  "dongia": 3600,
+  "ghichu": "Nhập lô thuốc mới theo hóa đơn HD-NK-0088"
+}
+```
+* **Response Thành công (200 OK):**
+```json
+{
+  "success": true,
+  "message": "Nhập kho thành công 300 đơn vị cho thuốc \"Amoxicillin 500mg\"!",
+  "data": {
+    "medicine": {
+      "mathuoc": 5,
+      "tenthuoc": "Amoxicillin 500mg",
+      "soluongton": 500,
+      "hansudung": "2028-06-30",
+      "dongia": 3600
+    },
+    "importDetails": {
+      "mathuoc": 5,
+      "soluongnhap": 300,
+      "soluongtoncu": 200,
+      "soluongtonmoi": 500,
+      "ghichu": "Nhập lô thuốc mới theo hóa đơn HD-NK-0088",
+      "thoigiannhap": "2026-10-20T13:00:00.000Z"
+    }
+  }
+}
+```
+
+---
+
+### 14.8. Kiểm kê & điều chỉnh tồn kho (Stock Adjustment)
+* **Endpoint:** `PUT /api/medicines/:id/stock`
+* **Quyền:** `Admin` (`Bearer Token`)
+* **Request Body:**
+```json
+{
+  "soluongton": 490,
+  "lydo": "Kiểm kê kho định kỳ: phát hiện hỏng vỡ 10 viên"
+}
+```
+* **Response Thành công (200 OK):**
+```json
+{
+  "success": true,
+  "message": "Điều chỉnh số lượng tồn kho thành công (500 -> 490)!",
+  "data": {
+    "medicine": {
+      "mathuoc": 5,
+      "soluongton": 490
+    },
+    "adjustmentDetails": {
+      "mathuoc": 5,
+      "soluongtoncu": 500,
+      "soluongtonmoi": 490,
+      "chenhlech": -10,
+      "lydo": "Kiểm kê kho định kỳ: phát hiện hỏng vỡ 10 viên",
+      "thoigiandieuchinh": "2026-10-20T13:05:00.000Z"
+    }
+  }
+}
+```
+
+---
+
+### 14.9. Xóa thuốc khỏi danh mục (Safe Delete Guard)
+* **Endpoint:** `DELETE /api/medicines/:id`
+* **Quyền:** `Admin` (`Bearer Token`)
+* **Lưu ý an toàn:** Không thể xóa thuốc nếu thuốc đã được kê đơn cho bệnh nhân (`chitietdonthuoc`) hoặc đã xuất hóa đơn viện phí (`chitiethoadon`) để bảo vệ toàn vẹn lịch sử bệnh án.
+* **Response Thành công (200 OK):**
+```json
+{
+  "success": true,
+  "message": "Xóa thuốc \"Amoxicillin 500mg\" thành công!",
+  "data": {
+    "mathuoc": 5,
+    "tenthuoc": "Amoxicillin 500mg"
+  }
+}
+```
+
+---
+
+## 🛠️ 15. MẪU CODE GỌI API CHO FRONTEND (AXIOS INSTANCE)
 
 Đoạn mã mẫu cài đặt Axios Interceptor tự động gắn token và xử lý lỗi:
 
@@ -2354,5 +2643,6 @@ axiosClient.interceptors.response.use(
 
 export default axiosClient;
 ```
+
 
 
