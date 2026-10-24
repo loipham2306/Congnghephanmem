@@ -2601,7 +2601,242 @@ Phân hệ phục vụ quản lý danh mục thuốc, tra cứu bảng giá, nh�
 
 ---
 
-## 🛠️ 15. MẪU CODE GỌI API CHO FRONTEND (AXIOS INSTANCE)
+## 💊 15. PHÂN HỆ KÊ ĐƠN THUỐC ĐIỆN TỬ & TỰ ĐỘNG KIỂM TRA/TRỪ KHO (`/api/prescriptions`)
+
+> **Quy tắc nghiệp vụ quan trọng:**
+> 1. Mỗi lần khám bệnh (`malsk`) chỉ được kê tối đa **01 đơn thuốc duy nhất**. Nếu kê thêm sẽ báo lỗi trùng lặp `409 Conflict`.
+> 2. Hệ thống tự động kiểm tra **hạn sử dụng** và **số lượng tồn kho** của từng loại thuốc trước khi lưu. Nếu thuốc hết hạn hoặc tồn kho không đủ, API sẽ từ chối tạo đơn (`400 Bad Request`) và thông báo rõ loại thuốc nào, còn bao nhiêu đơn vị.
+> 3. Toàn bộ thao tác tạo/sửa/xóa đơn thuốc đều chạy trong **Prisma Database Transaction** nguyên tử (Atomic). Trừ kho ngay lập tức khi kê đơn, hoàn trả lại tồn kho nếu hủy đơn.
+> 4. Tự động đồng bộ các loại thuốc đã kê vào hóa đơn viện phí (`chitiethoadon`) và cập nhật lại tổng tiền hóa đơn nếu hóa đơn đang ở trạng thái `ChuaThanhToan`.
+> 5. **Bảo vệ an toàn (Safe Guard):** Nếu hóa đơn của lần khám đã thanh toán (`DaThanhToan`), hệ thống khóa quyền chỉnh sửa và hủy đơn thuốc để bảo toàn dữ liệu tài chính.
+
+---
+
+### 15.1. Kê đơn thuốc điện tử mới
+* **Endpoint:** `POST /api/prescriptions`
+* **Quyền:** `BacSi`, `Admin` (`Bearer Token`)
+* **Request Body:**
+```json
+{
+  "malsk": 1,
+  "ghichubacsi": "Uống sau khi ăn no. Tái khám sau 7 ngày nếu còn sốt.",
+  "medicines": [
+    {
+      "mathuoc": 1,
+      "soluong": 20,
+      "lieudung": "1 viên/lần, ngày 2 lần sáng - tối",
+      "thoigiansudung": "Uống sau ăn 30 phút"
+    },
+    {
+      "mathuoc": 2,
+      "soluong": 10,
+      "lieudung": "1 viên/ngày vào buổi sáng",
+      "thoigiansudung": "Uống với nhiều nước"
+    }
+  ]
+}
+```
+* **Response Thành công (201 Created):**
+```json
+{
+  "success": true,
+  "message": "Kê đơn thuốc điện tử thành công! Đã tự động kiểm tra và trừ tồn kho thuốc.",
+  "data": {
+    "madt": 10,
+    "malsk": 1,
+    "ngayke": "2026-10-24",
+    "ghichubacsi": "Uống sau khi ăn no. Tái khám sau 7 ngày nếu còn sốt.",
+    "benhnhan": {
+      "mabn": 1,
+      "hoten": "Nguyễn Văn An",
+      "ngaysinh": "2000-01-15",
+      "gioitinh": "Nam",
+      "sdt": "0912345678",
+      "diachi": "123 Nguyễn Trãi, Q5, TP.HCM"
+    },
+    "bacsi": {
+      "mabs": 1,
+      "hoten": "BS. Lê Văn B",
+      "sdt": "0987654321",
+      "chuyenkhoa": "Khoa Nội Tổng Quát"
+    },
+    "khambenh": {
+      "ngaykham": "2026-10-24",
+      "trieuchung": "Sốt cao, đau họng, ho khan",
+      "chandoan": "Viêm họng cấp",
+      "ketluan": "Kê đơn ngoại trú điều trị tại nhà"
+    },
+    "hoadon": {
+      "mahd": 5,
+      "tongtien": 150000,
+      "trangthaithanhtoan": "ChuaThanhToan"
+    },
+    "items": [
+      {
+        "mactdt": 21,
+        "mathuoc": 1,
+        "tenthuoc": "Paracetamol 500mg",
+        "donvitinh": "Viên",
+        "dongia": 2000,
+        "soluong": 20,
+        "lieudung": "1 viên/lần, ngày 2 lần sáng - tối",
+        "thoigiansudung": "Uống sau ăn 30 phút",
+        "thanhtien": 40000,
+        "hansudung": "2028-12-31",
+        "soluongton_hientai": 480
+      },
+      {
+        "mactdt": 22,
+        "mathuoc": 2,
+        "tenthuoc": "Amoxicillin 500mg",
+        "donvitinh": "Viên",
+        "dongia": 5000,
+        "soluong": 10,
+        "lieudung": "1 viên/ngày vào buổi sáng",
+        "thoigiansudung": "Uống với nhiều nước",
+        "thanhtien": 50000,
+        "hansudung": "2027-10-20",
+        "soluongton_hientai": 190
+      }
+    ],
+    "tongsoluongthuoc": 30,
+    "tongtienthuoc": 90000
+  }
+}
+```
+
+---
+
+### 15.2. Lấy danh sách đơn thuốc (Tìm kiếm & Phân trang)
+* **Endpoint:** `GET /api/prescriptions`
+* **Quyền:** `BacSi`, `Admin`, `LeTan`, `YTa`, `BenhNhan` (`Bearer Token`)
+* **Lưu ý phân quyền:** Tài khoản vai trò `BenhNhan` chỉ truy xuất được các đơn thuốc thuộc hồ sơ của chính mình.
+* **Query Parameters:**
+  * `mabn` *(number, optional)*: Lọc theo mã bệnh nhân.
+  * `mabs` *(number, optional)*: Lọc theo mã bác sĩ kê đơn.
+  * `malsk` *(number, optional)*: Lọc theo mã lần khám.
+  * `fromDate` *(string, optional, YYYY-MM-DD)*: Từ ngày kê đơn.
+  * `toDate` *(string, optional, YYYY-MM-DD)*: Đến ngày kê đơn.
+  * `page` *(number, default: 1)*: Trang hiện tại.
+  * `limit` *(number, default: 10)*: Số dòng mỗi trang.
+* **Response Thành công (200 OK):**
+```json
+{
+  "success": true,
+  "message": "Lấy danh sách đơn thuốc thành công!",
+  "data": [
+    {
+      "madt": 10,
+      "malsk": 1,
+      "ngayke": "2026-10-24",
+      "ghichubacsi": "Uống sau khi ăn no. Tái khám sau 7 ngày nếu còn sốt.",
+      "benhnhan": { ... },
+      "bacsi": { ... },
+      "khambenh": { ... },
+      "hoadon": { ... },
+      "items": [ ... ],
+      "tongsoluongthuoc": 30,
+      "tongtienthuoc": 90000
+    }
+  ],
+  "pagination": {
+    "page": 1,
+    "limit": 10,
+    "total": 1,
+    "totalPages": 1
+  }
+}
+```
+
+---
+
+### 15.3. Xem chi tiết đơn thuốc theo ID
+* **Endpoint:** `GET /api/prescriptions/:id`
+* **Quyền:** `BacSi`, `Admin`, `LeTan`, `YTa`, `BenhNhan` (`Bearer Token`)
+* **Response Thành công (200 OK):**
+```json
+{
+  "success": true,
+  "message": "Lấy chi tiết đơn thuốc thành công!",
+  "data": {
+    "madt": 10,
+    "malsk": 1,
+    "ngayke": "2026-10-24",
+    "ghichubacsi": "Uống sau khi ăn no.",
+    "benhnhan": { ... },
+    "bacsi": { ... },
+    "khambenh": { ... },
+    "hoadon": { ... },
+    "items": [ ... ],
+    "tongsoluongthuoc": 30,
+    "tongtienthuoc": 90000
+  }
+}
+```
+
+---
+
+### 15.4. Lấy đơn thuốc theo mã lần khám bệnh
+* **Endpoint:** `GET /api/prescriptions/exam/:examId`
+* **Quyền:** `BacSi`, `Admin`, `LeTan`, `YTa`, `BenhNhan` (`Bearer Token`)
+* **Mục đích:** Giúp màn hình chi tiết phiếu khám tải ngay đơn thuốc tương ứng của lần khám đó mà không cần qua danh sách đơn thuốc.
+* **Response Thành công (200 OK):**
+```json
+{
+  "success": true,
+  "message": "Lấy thông tin đơn thuốc của lần khám bệnh thành công!",
+  "data": { ... }
+}
+```
+
+---
+
+### 15.5. Cập nhật đơn thuốc điện tử
+* **Endpoint:** `PUT /api/prescriptions/:id`
+* **Quyền:** `BacSi`, `Admin` (`Bearer Token`)
+* **Điều kiện:** Hóa đơn của lần khám tương ứng **chưa thanh toán**.
+* **Cơ chế cân đối tồn kho:** Hệ thống sẽ tự động hoàn trả số lượng thuốc cũ về kho, kiểm tra hạn dùng & tồn kho của danh sách thuốc mới, sau đó trừ kho mới và cập nhật lại chi tiết hóa đơn viện phí.
+* **Request Body:**
+```json
+{
+  "ghichubacsi": "Uống sau ăn 30 phút. Bổ sung nhiều nước ấm.",
+  "medicines": [
+    {
+      "mathuoc": 1,
+      "soluong": 15,
+      "lieudung": "1 viên/lần, ngày 2 lần",
+      "thoigiansudung": "Uống sau ăn"
+    }
+  ]
+}
+```
+* **Response Thành công (200 OK):**
+```json
+{
+  "success": true,
+  "message": "Cập nhật đơn thuốc điện tử và cân đối tồn kho thành công!",
+  "data": { ... }
+}
+```
+
+---
+
+### 15.6. Hủy / Xóa đơn thuốc và tự động hoàn trả tồn kho
+* **Endpoint:** `DELETE /api/prescriptions/:id`
+* **Quyền:** `BacSi`, `Admin` (`Bearer Token`)
+* **Điều kiện:** Hóa đơn của lần khám **chưa thanh toán**.
+* **Cơ chế Rollback:** Toàn bộ số lượng của các loại thuốc trong đơn sẽ được tự động cộng trả lại vào kho (`soluongton`), đồng thời xóa các dòng tương ứng trong chi tiết hóa đơn và cập nhật lại tổng tiền hóa đơn viện phí.
+* **Response Thành công (200 OK):**
+```json
+{
+  "success": true,
+  "message": "Hủy đơn thuốc #10 thành công! Toàn bộ số lượng thuốc (2 loại) đã được tự động hoàn lại vào kho."
+}
+```
+
+---
+
+## 🛠️ 16. MẪU CODE GỌI API CHO FRONTEND (AXIOS INSTANCE)
 
 Đoạn mã mẫu cài đặt Axios Interceptor tự động gắn token và xử lý lỗi:
 
