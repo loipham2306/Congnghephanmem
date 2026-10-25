@@ -2,6 +2,7 @@ import { useEffect, useState, useMemo } from 'react'
 import AOS from 'aos'
 import PageTitle from '../../components/common/PageTitle'
 import appointmentService from '../../services/appointmentService'
+import doctorService from '../../services/doctorService'
 
 // Danh mục loại hình dịch vụ khám
 const SERVICE_TYPES = [
@@ -149,9 +150,49 @@ const AFTERNOON_SLOTS = [
 ]
 
 export default function Appointment() {
+  const [doctorList, setDoctorList] = useState(DOCTOR_LIST)
+
   useEffect(() => {
     AOS.refresh()
     window.scrollTo(0, 0)
+
+    doctorService.getAll().then(apiDoctors => {
+      if (apiDoctors && apiDoctors.length > 0) {
+        const mapped = apiDoctors.map(d => {
+          const dept = d.department || d.chuyenkhoa || ''
+          let deptId = 'general'
+          if (/mắt/i.test(dept)) deptId = 'ophthalmology'
+          else if (/tim/i.test(dept)) deptId = 'cardiology'
+          else if (/nhi/i.test(dept)) deptId = 'pediatrics'
+          else if (/thần kinh/i.test(dept)) deptId = 'neurology'
+          else if (/khớp|xương/i.test(dept)) deptId = 'orthopedics'
+          else if (/da/i.test(dept)) deptId = 'dermatology'
+          else if (/răng|nha/i.test(dept)) deptId = 'dental'
+          else if (/sản/i.test(dept)) deptId = 'obstetrics'
+
+          return {
+            id: d.id || d.mabs,
+            name: d.name || d.hoten,
+            title: d.title || 'Bác sĩ chuyên khoa',
+            deptId,
+            deptName: dept,
+            experience: d.experience || '10+ năm KN',
+            rating: d.rating || 5.0,
+            reviews: d.reviewsCount || 120,
+            avatar: d.img || 'https://images.unsplash.com/photo-1622253692010-333f2da6031d?w=200&h=200&fit=crop&crop=face'
+          }
+        })
+
+        // Kết hợp bác sĩ từ DB lên đầu danh sách
+        const combined = [...mapped]
+        DOCTOR_LIST.forEach(fallbackDoc => {
+          if (!combined.some(c => c.name === fallbackDoc.name || c.id === fallbackDoc.id)) {
+            combined.push(fallbackDoc)
+          }
+        })
+        setDoctorList(combined)
+      }
+    }).catch(() => {})
   }, [])
 
   // Helper tính ngày
@@ -182,9 +223,9 @@ export default function Appointment() {
 
   // Danh sách bác sĩ lọc theo chuyên khoa đã chọn
   const filteredDoctors = useMemo(() => {
-    if (selectedDept === 'all') return DOCTOR_LIST
-    return DOCTOR_LIST.filter(d => d.deptId === selectedDept)
-  }, [selectedDept])
+    if (selectedDept === 'all') return doctorList
+    return doctorList.filter(d => d.deptId === selectedDept || (selectedDept === 'ophthalmology' && /mắt/i.test(d.deptName)))
+  }, [selectedDept, doctorList])
 
   // Lấy chi tiết thông tin đang chọn để cập nhật phiếu Live Preview
   const currentServiceObj = useMemo(() => {
@@ -203,8 +244,8 @@ export default function Appointment() {
         rating: 5.0
       }
     }
-    return DOCTOR_LIST.find(d => d.id === selectedDoctor) || DOCTOR_LIST[0]
-  }, [selectedDoctor, selectedDept])
+    return doctorList.find(d => d.id === selectedDoctor) || doctorList[0] || DOCTOR_LIST[0]
+  }, [selectedDoctor, selectedDept, doctorList])
 
   const handleInputChange = (e) => {
     setPatientInfo({ ...patientInfo, [e.target.name]: e.target.value })
