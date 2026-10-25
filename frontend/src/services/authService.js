@@ -52,6 +52,24 @@ export const authService = {
       if (token) {
         localStorage.setItem(TOKEN_KEY, token)
         localStorage.setItem('token', token)
+
+        if (mappedUser.role === 'PATIENT') {
+          try {
+            const pRes = await api.get('/patients/me')
+            const p = pRes.data || pRes
+            if (p && p.hoten) {
+              mappedUser.fullName = p.hoten
+              mappedUser.mabn = p.mabn
+              mappedUser.phone = p.sdt
+              if (p.taikhoan?.tendangnhap) {
+                mappedUser.username = p.taikhoan.tendangnhap
+              }
+            }
+          } catch (e) {
+            console.warn('[authService] Không thể nạp hồ sơ bệnh nhân lúc login:', e.message)
+          }
+        }
+
         localStorage.setItem(STORAGE_KEY, JSON.stringify(mappedUser))
       }
 

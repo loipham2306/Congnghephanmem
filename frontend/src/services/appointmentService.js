@@ -42,7 +42,9 @@ function normalizeAppointment(a) {
     timeSlot = a.timeSlot
   }
 
-  const doctorName = a.bacsi?.nhanvien?.hoten || a.doctorName || 'BS. CKII. Trần Văn Hùng'
+  const doctorName = a.bacsi?.nhanvien?.hoten
+    ? `${a.bacsi.hocham ? a.bacsi.hocham + ' ' : ''}${a.bacsi.nhanvien.hoten}`
+    : (a.bacsi?.hoten || a.doctorName || 'BS. CKII. Trần Văn Hùng')
   const department = a.bacsi?.chuyenkhoa?.tenchuyenkhoa || a.department || 'Đa Khoa'
   const patientName = a.benhnhan?.hoten || a.patientName || 'Bệnh Nhân'
   const phone = a.benhnhan?.sdt || a.phone || ''
@@ -77,6 +79,21 @@ export const appointmentService = {
     } catch (err) {
       console.warn('[appointmentService] Gọi /appointments lỗi, dùng fallback:', err.message)
       return initialAppointments
+    }
+  },
+
+  // Lấy danh sách lịch hẹn của chính bệnh nhân đang đăng nhập (/api/appointments/my-appointments)
+  async getMyAppointments() {
+    try {
+      const res = await api.get('/appointments/my-appointments')
+      const list = res.data || (Array.isArray(res) ? res : [])
+      if (Array.isArray(list) && list.length > 0) {
+        return list.map(normalizeAppointment)
+      }
+      return []
+    } catch (err) {
+      console.warn('[appointmentService] getMyAppointments error:', err.message)
+      return []
     }
   },
 

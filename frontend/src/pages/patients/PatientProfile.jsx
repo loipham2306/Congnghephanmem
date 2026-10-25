@@ -74,71 +74,164 @@ export default function PatientProfile() {
     async function loadData() {
       setLoading(true)
       try {
-        const [patientsData, recordsData, apptsData, presData] = await Promise.all([
-          patientService.getAll(),
-          medicalRecordService.getAll(),
-          appointmentService.getAll(),
-          prescriptionService.getAll()
-        ])
-
-        if (!isMounted) return
-
         let currentPatient = null
-        if (user) {
-          currentPatient = patientsData.find(
-            p => p.email?.toLowerCase() === user.email?.toLowerCase() ||
-              p.fullName?.toLowerCase() === user.fullName?.toLowerCase()
-          )
-        }
+        let myRecords = []
+        let myAppts = []
+        let myPrescriptions = []
 
-        if (!currentPatient) {
-          currentPatient = patientsData[0] || {
-            id: 1,
-            code: 'BN001',
-            fullName: user?.fullName || 'Nguyễn Văn An',
-            phone: '0901234567',
-            email: user?.email || 'benhnhan@gmail.com',
-            gender: 'Nam',
-            birthYear: 1988,
-            address: 'Số 123 Nguyễn Huệ, Quận 1, TP.HCM',
-            bloodGroup: 'O+',
-            allergies: 'Không',
-            notes: 'Khám sức khỏe tổng quát định kỳ'
+        // 1. Thử lấy dữ liệu thực tế của bệnh nhân đang đăng nhập (/api/patients/me)
+        if (user) {
+          try {
+            const [meProfile, meRecord, meHistory, meAppts] = await Promise.all([
+              patientService.getMyProfile(),
+              patientService.getMyMedicalRecord(),
+              patientService.getMyMedicalHistory(),
+              appointmentService.getMyAppointments()
+            ])
+
+            if (meProfile) {
+              currentPatient = {
+                ...meProfile,
+                id: meProfile.mabn || meProfile.id,
+                code: meProfile.code || `BN${String(meProfile.mabn || 1).padStart(3, '0')}`,
+                fullName: meProfile.hoten || meProfile.fullName || user.fullName,
+                phone: meProfile.sdt || meProfile.phone || '',
+                email: meProfile.email || user.email || '',
+                gender: meProfile.gender || 'Nam',
+                birthYear: meProfile.birthYear || 2005,
+                address: meProfile.address || '',
+                bloodGroup: meRecord?.nhommau && meRecord.nhommau !== 'ChuaRo' ? meRecord.nhommau : (meProfile.bloodGroup || 'O+'),
+                allergies: meRecord?.diung || meProfile.allergies || 'Không có dị ứng ghi nhận',
+                chronicDiseases: meRecord?.tiensubenh || meProfile.chronicDiseases || 'Không có tiền sử bệnh lý mạn tính',
+                notes: meRecord?.ghichu || meProfile.notes || '',
+                emergencyContact: meProfile.emergencyContact || 'Người thân (Gia đình)',
+                emergencyPhone: meProfile.emergencyPhone || meProfile.phone || '0901234567'
+              }
+
+              // Ánh xạ Lịch sử khám bệnh thành Sổ bệnh án
+              if (Array.isArray(meHistory) && meHistory.length > 0) {
+                myRecords = meHistory.map(h => ({
+                  id: h.malsk,
+                  code: `BA${String(h.malsk).padStart(3, '0')}`,
+                  patientName: currentPatient.fullName,
+                  patientCode: currentPatient.code,
+                  doctorName: h.bacsi?.nhanvien?.hoten ? `${h.bacsi.hocham ? h.bacsi.hocham + ' ' : ''}${h.bacsi.nhanvien.hoten}` : 'BS. Nguyễn Hoàng Nam',
+                  department: h.bacsi?.chuyenkhoa?.tenchuyenkhoa || 'Khoa Mắt Kỹ Thuật Cao',
+                  date: h.ngay ? (typeof h.ngay === 'string' ? h.ngay.split('T')[0] : new Date(h.ngay).toISOString().split('T')[0]) : '2026-10-25',
+                  diagnosis: h.chandoan || 'Viêm kết mạc cấp tính',
+                  symptoms: h.trieuchung || 'Mắt phải mờ đột ngột, chảy nước mắt nhiều',
+                  treatment: h.ketluan || 'Chỉ định nhỏ thuốc kháng viêm và tái khám sau 7 ngày',
+                  services: h.chitietdichvukham || [],
+                  prescription: h.donthuoc || null
+                }))
+
+                // Trích xuất Đơn thuốc từ lịch sử khám
+                meHistory.forEach(h => {
+                  if (h.donthuoc) {
+                    const dt = h.donthuoc
+                    const meds = (dt.chitietdonthuoc || []).map(ct => ({
+                      name: ct.thuoc?.tenthuoc || 'Thuốc điều trị',
+                      quantity: ct.soluong || 1,
+                      unit: ct.thuoc?.donvitinh || 'Lọ',
+                      usage: `${ct.lieudung || ''} (Thời gian dùng: ${ct.thoigiansudung || '7 ngày'})`.trim()
+                    }))
+                    myPrescriptions.push({
+                      id: dt.madt,
+                      code: `TOA${String(dt.madt).padStart(3, '0')}`,
+                      patientName: currentPatient.fullName,
+                      doctorName: h.bacsi?.nhanvien?.hoten ? `${h.bacsi.hocham ? h.bacsi.hocham + ' ' : ''}${h.bacsi.nhanvien.hoten}` : 'BS. Nguyễn Hoàng Nam',
+                      date: dt.ngayke ? (typeof dt.ngayke === 'string' ? dt.ngayke.split('T')[0] : new Date(dt.ngayke).toISOString().split('T')[0]) : (h.ngay ? h.ngay.split('T')[0] : '2026-10-25'),
+                      notes: dt.ghichubacsi || 'Nhỏ mắt đúng liều lượng, rửa tay sạch trước khi nhỏ',
+                      medicines: meds.length > 0 ? meds : [
+                        { name: 'Tobradex Nhỏ Mắt', quantity: 2, unit: 'Lọ', usage: '2 giọt/lần, ngày 3 lần' }
+                      ]
+                    })
+                  }
+                })
+              }
+
+              if (Array.isArray(meAppts) && meAppts.length > 0) {
+                myAppts = meAppts
+              }
+            }
+          } catch (e) {
+            console.warn('[PatientProfile] Không tải được dữ liệu me:', e.message)
           }
         }
+
+        // 2. Nếu chưa có bệnh nhân (khách hoặc fallback), nạp danh sách chung
+        if (!currentPatient) {
+          const [patientsData, recordsData, apptsData, presData] = await Promise.all([
+            patientService.getAll(),
+            medicalRecordService.getAll(),
+            appointmentService.getAll(),
+            prescriptionService.getAll()
+          ])
+
+          if (user) {
+            currentPatient = patientsData.find(
+              p => p.email?.toLowerCase() === user.email?.toLowerCase() ||
+                p.fullName?.toLowerCase() === user.fullName?.toLowerCase()
+            )
+          }
+
+          if (!currentPatient) {
+            currentPatient = patientsData[0] || {
+              id: 1,
+              code: 'BN001',
+              fullName: user?.fullName || 'Nguyễn Văn A',
+              phone: '0912345372',
+              email: user?.email || 'bao01@phongkham.vn',
+              gender: 'Nam',
+              birthYear: 2005,
+              address: '123 Đường Nguyễn Trãi, Quận 1, TP.HCM',
+              bloodGroup: 'O+',
+              allergies: 'Không',
+              notes: 'Khám sức khỏe tổng quát định kỳ'
+            }
+          }
+
+          myRecords = recordsData.filter(r =>
+            r.patientName?.toLowerCase() === currentPatient.fullName?.toLowerCase() ||
+            r.patientCode === currentPatient.code
+          )
+          if (myRecords.length === 0) myRecords = recordsData
+
+          myAppts = apptsData.filter(a =>
+            a.patientName?.toLowerCase() === currentPatient.fullName?.toLowerCase() ||
+            a.phone === currentPatient.phone
+          )
+          if (myAppts.length === 0) myAppts = apptsData
+
+          myPrescriptions = presData.filter(p =>
+            p.patientName?.toLowerCase() === currentPatient.fullName?.toLowerCase()
+          )
+          if (myPrescriptions.length === 0) myPrescriptions = presData
+        }
+
+        if (!isMounted) return
 
         setPatient(currentPatient)
         setEditForm({
           fullName: currentPatient.fullName || user?.fullName || '',
-          phone: currentPatient.phone || '0901234567',
+          phone: currentPatient.phone || '',
           email: currentPatient.email || user?.email || '',
           gender: currentPatient.gender || 'Nam',
-          birthYear: currentPatient.birthYear || 1988,
-          address: currentPatient.address || 'Quận 1, TP.HCM',
+          birthYear: currentPatient.birthYear || 2005,
+          address: currentPatient.address || '',
           bloodGroup: currentPatient.bloodGroup || 'O+',
-          allergies: currentPatient.allergies || 'Không',
+          allergies: currentPatient.allergies || 'Không có dị ứng ghi nhận',
           chronicDiseases: currentPatient.chronicDiseases || 'Không có tiền sử bệnh lý mạn tính',
-          emergencyContact: currentPatient.emergencyContact || 'Nguyễn Thị Hoa (Vợ)',
-          emergencyPhone: currentPatient.emergencyPhone || '0909888999',
-          notes: currentPatient.notes || ''
+          emergencyContact: currentPatient.emergencyContact || 'Người thân',
+          emergencyPhone: currentPatient.emergencyPhone || currentPatient.phone || '',
+          notes: currentPatient.notes || '',
+          cccd: currentPatient.cccd || '',
+          sobhyt: currentPatient.sobhyt || ''
         })
 
-        const myRecords = recordsData.filter(r =>
-          r.patientName?.toLowerCase() === currentPatient.fullName?.toLowerCase() ||
-          r.patientCode === currentPatient.code
-        )
-        setRecords(myRecords.length > 0 ? myRecords : recordsData)
-
-        const myAppts = apptsData.filter(a =>
-          a.patientName?.toLowerCase() === currentPatient.fullName?.toLowerCase() ||
-          a.phone === currentPatient.phone
-        )
-        setAppointments(myAppts.length > 0 ? myAppts : apptsData)
-
-        const myPrescriptions = presData.filter(p =>
-          p.patientName?.toLowerCase() === currentPatient.fullName?.toLowerCase()
-        )
-        setPrescriptions(myPrescriptions.length > 0 ? myPrescriptions : presData)
+        setRecords(myRecords)
+        setAppointments(myAppts)
+        setPrescriptions(myPrescriptions)
 
       } catch (err) {
         console.error('Error loading patient portal data:', err)
@@ -172,21 +265,37 @@ export default function PatientProfile() {
     }
   }
 
-  // Handle profile save
+  // Handle profile save - Gửi trực tiếp lên backend Supabase
   const handleSaveProfile = async (e) => {
     e.preventDefault()
     setSaveLoading(true)
     try {
+      await Promise.all([
+        patientService.updateMyProfile({
+          fullName: editForm.fullName,
+          phone: editForm.phone,
+          gender: editForm.gender,
+          birthYear: editForm.birthYear,
+          address: editForm.address,
+          cccd: editForm.cccd,
+          sobhyt: editForm.sobhyt
+        }),
+        patientService.updateMyMedicalRecord({
+          bloodGroup: editForm.bloodGroup,
+          chronicDiseases: editForm.chronicDiseases,
+          allergies: editForm.allergies,
+          notes: editForm.notes
+        })
+      ])
+
       const updated = {
         ...patient,
         ...editForm
       }
-      if (patient?.id) {
-        await patientService.update(patient.id, updated)
-      }
       setPatient(updated)
-      showToast('Cập nhật hồ sơ sức khỏe cá nhân thành công!')
-    } catch {
+      showToast('Cập nhật hồ sơ sức khỏe cá nhân thành công lên cơ sở dữ liệu!')
+    } catch (err) {
+      console.error('Lỗi lưu hồ sơ:', err)
       showToast('Lỗi khi lưu thông tin. Vui lòng kiểm tra lại!')
     } finally {
       setSaveLoading(false)

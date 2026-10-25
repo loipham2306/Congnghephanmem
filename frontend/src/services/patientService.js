@@ -24,10 +24,13 @@ function normalizePatient(p) {
     birthday: p.ngaysinh ? (typeof p.ngaysinh === 'string' ? p.ngaysinh.split('T')[0] : new Date(p.ngaysinh).toISOString().split('T')[0]) : `${birthYear}-01-01`,
     phone: p.sdt || p.phone,
     sdt: p.sdt || p.phone,
-    email: p.email || `${(p.hoten || 'benhnhan').toLowerCase().replace(/\s+/g, '')}@gmail.com`,
+    email: p.email || (p.taikhoan?.tendangnhap ? `${p.taikhoan.tendangnhap}@phongkham.vn` : `${(p.hoten || 'benhnhan').toLowerCase().replace(/\s+/g, '')}@gmail.com`),
     address: p.diachi || p.address || 'TP. Hồ Chí Minh',
-    bloodGroup: hsba.nhommau || p.bloodGroup || 'O+',
-    allergies: hsba.diung || p.allergies || 'Không ghi nhận',
+    cccd: p.cccd || '',
+    sobhyt: p.sobhyt || '',
+    bloodGroup: hsba.nhommau && hsba.nhommau !== 'ChuaRo' ? hsba.nhommau : (p.bloodGroup || 'O+'),
+    allergies: hsba.diung || p.allergies || 'Không có dị ứng ghi nhận',
+    chronicDiseases: hsba.tiensubenh || p.chronicDiseases || 'Không có tiền sử bệnh lý mạn tính',
     notes: hsba.ghichu || hsba.tiensubenh || p.notes || '',
     history: p.lichsukham || []
   }
@@ -57,12 +60,74 @@ export const patientService = {
     }
   },
 
+  // 1. Lấy thông tin cá nhân của bệnh nhân đang đăng nhập (/api/patients/me)
   async getMyProfile() {
     try {
-      const res = await api.get('/patients/profile')
+      const res = await api.get('/patients/me')
+      const data = res.data || res
+      return normalizePatient(data)
+    } catch (err) {
+      console.warn('[patientService] getMyProfile error:', err.message)
+      return null
+    }
+  },
+
+  // 2. Cập nhật hồ sơ cá nhân bệnh nhân đang đăng nhập (/api/patients/me)
+  async updateMyProfile(data) {
+    try {
+      const payload = {
+        hoten: data.fullName || data.hoten,
+        gioitinh: data.gender === 'Nữ' || data.gioitinh === 'Nu' ? 'Nu' : 'Nam',
+        ngaysinh: data.birthday || `${data.birthYear || 1990}-01-01`,
+        sdt: data.phone || data.sdt,
+        diachi: data.address || data.diachi,
+        cccd: data.cccd,
+        sobhyt: data.sobhyt
+      }
+      const res = await api.put('/patients/me', payload)
       return normalizePatient(res.data || res)
-    } catch {
-      return initialPatients[0]
+    } catch (err) {
+      console.error('[patientService] updateMyProfile error:', err.message)
+      throw err
+    }
+  },
+
+  // 3. Lấy hồ sơ bệnh án & tiền sử (/api/patients/me/medical-record)
+  async getMyMedicalRecord() {
+    try {
+      const res = await api.get('/patients/me/medical-record')
+      return res.data || res
+    } catch (err) {
+      console.warn('[patientService] getMyMedicalRecord error:', err.message)
+      return null
+    }
+  },
+
+  // 4. Cập nhật hồ sơ bệnh án & tiền sử (/api/patients/me/medical-record)
+  async updateMyMedicalRecord(data) {
+    try {
+      const payload = {
+        nhommau: data.bloodGroup || data.nhommau || 'ChuaRo',
+        tiensubenh: data.chronicDiseases || data.tiensubenh || 'Không',
+        diung: data.allergies || data.diung || 'Không',
+        ghichu: data.notes || data.ghichu || ''
+      }
+      const res = await api.put('/patients/me/medical-record', payload)
+      return res.data || res
+    } catch (err) {
+      console.error('[patientService] updateMyMedicalRecord error:', err.message)
+      throw err
+    }
+  },
+
+  // 5. Lấy lịch sử khám bệnh (/api/patients/me/medical-history)
+  async getMyMedicalHistory() {
+    try {
+      const res = await api.get('/patients/me/medical-history')
+      return res.data || (Array.isArray(res) ? res : [])
+    } catch (err) {
+      console.warn('[patientService] getMyMedicalHistory error:', err.message)
+      return []
     }
   },
 
