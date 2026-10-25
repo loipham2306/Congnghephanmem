@@ -32,9 +32,9 @@ export default function Login() {
     }
   }
 
-  const handleQuickLogin = (quickEmail) => {
-    setEmail(quickEmail)
-    setPassword('123456')
+  const handleQuickLogin = (username, pwd = '123456') => {
+    setEmail(username)
+    setPassword(pwd)
   }
 
   return (
@@ -71,12 +71,12 @@ export default function Login() {
             <div className="pk-input-box">
               <span className="pk-input-icon"><i className="bi bi-envelope"></i></span>
               <input
-                type="email"
+                type="text"
                 className="pk-input"
                 required
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                placeholder="admin@phongkham.vn"
+                placeholder="Nhập tên đăng nhập hoặc email (VD: bao01, admin)"
                 autoComplete="username"
               />
             </div>
@@ -139,13 +139,13 @@ export default function Login() {
         <div className="pk-quick-demo">
           <span className="pk-quick-label">Tài khoản dùng thử (Bấm để điền):</span>
           <div className="pk-quick-btns">
-            <button type="button" className="pk-quick-btn" onClick={() => handleQuickLogin('admin@phongkham.vn')}>
+            <button type="button" className="pk-quick-btn" onClick={() => handleQuickLogin('admin', '123456')}>
               Quản trị viên
             </button>
-            <button type="button" className="pk-quick-btn" onClick={() => handleQuickLogin('bacsi@phongkham.vn')}>
+            <button type="button" className="pk-quick-btn" onClick={() => handleQuickLogin('bs_hoangnam', 'Password123@')}>
               Bác sĩ
             </button>
-            <button type="button" className="pk-quick-btn" onClick={() => handleQuickLogin('benhnhan@gmail.com')}>
+            <button type="button" className="pk-quick-btn" onClick={() => handleQuickLogin('bao01', '123456')}>
               Bệnh nhân
             </button>
           </div>
