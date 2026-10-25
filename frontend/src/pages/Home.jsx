@@ -1,6 +1,7 @@
-import { useEffect, useRef } from 'react'
+import { useEffect, useState, useRef } from 'react'
 import { Link } from 'react-router-dom'
 import AOS from 'aos'
+import doctorService from '../services/doctorService'
 
 // Counter hook
 function useCounter(end, duration = 2000, start = 0) {
@@ -45,18 +46,29 @@ function StatCounter({ end, label }) {
 }
 
 export default function Home() {
+  const [doctors, setDoctors] = useState([
+    { id: 1, name: 'BS. Nguyễn Hoàng Nam', specialty: 'Khoa Mắt Kỹ Thuật Cao', experience: '10 năm kinh nghiệm', rating: 5.0, reviews: 120, status: 'available', img: 'https://images.unsplash.com/photo-1622253692010-333f2da6031d?w=100&h=100&fit=crop&crop=face' },
+    { id: 2, name: 'BS. CKII. Trần Văn Hùng', specialty: 'Chuyên Gia Tim Mạch', experience: '15 năm kinh nghiệm', rating: 4.9, reviews: 142, status: 'available', img: 'https://images.unsplash.com/photo-1612349317150-e413f6a5b16d?w=100&h=100&fit=crop&crop=face' },
+    { id: 3, name: 'ThS. BS. Nguyễn Thị Lan', specialty: 'Nhi Khoa', experience: '10 năm kinh nghiệm', rating: 5.0, reviews: 198, status: 'available', img: 'https://images.unsplash.com/photo-1559839734-2b71ea197ec2?w=100&h=100&fit=crop&crop=face' }
+  ])
+
   useEffect(() => {
     AOS.refresh()
+    doctorService.getAll().then((list) => {
+      if (list && list.length > 0) {
+        setDoctors(list.map(d => ({
+          id: d.id || d.mabs,
+          name: d.name || d.hoten,
+          specialty: d.specialty || d.department,
+          experience: d.experience || '10 năm kinh nghiệm',
+          rating: d.rating || 5.0,
+          reviews: d.reviewsCount || 120,
+          status: 'available',
+          img: d.img || 'https://images.unsplash.com/photo-1622253692010-333f2da6031d?w=100&h=100&fit=crop&crop=face'
+        })))
+      }
+    }).catch(() => {})
   }, [])
-
-  const doctors = [
-    { id: 1, name: 'BS. Nguyễn Thị Hoa', specialty: 'Chuyên Gia Tim Mạch', experience: '14 năm kinh nghiệm', rating: 4.9, reviews: 127, status: 'available', img: 'https://images.unsplash.com/photo-1559839734-2b71ea197ec2?w=100&h=100&fit=crop&crop=face' },
-    { id: 2, name: 'BS. Trần Văn Minh', specialty: 'Chuyên Gia Thần Kinh', experience: '16 năm kinh nghiệm', rating: 4.8, reviews: 89, status: 'busy', img: 'https://images.unsplash.com/photo-1612349317150-e413f6a5b16d?w=100&h=100&fit=crop&crop=face' },
-    { id: 3, name: 'BS. Lê Thị Mai', specialty: 'Nhi Khoa', experience: '11 năm kinh nghiệm', rating: 5.0, reviews: 203, status: 'available', img: 'https://images.unsplash.com/photo-1594824476967-48c8b964273f?w=100&h=100&fit=crop&crop=face' },
-    { id: 4, name: 'BS. Phạm Quốc Tuấn', specialty: 'Phẫu Thuật Xương Khớp', experience: '22 năm kinh nghiệm', rating: 4.7, reviews: 156, status: 'offline', img: 'https://images.unsplash.com/photo-1622253692010-333f2da6031d?w=100&h=100&fit=crop&crop=face' },
-    { id: 5, name: 'BS. Võ Thị Lan', specialty: 'Da Liễu', experience: '9 năm kinh nghiệm', rating: 4.5, reviews: 74, status: 'available', img: 'https://images.unsplash.com/photo-1551601651-2a8555f1a136?w=100&h=100&fit=crop&crop=face' },
-    { id: 6, name: 'BS. Hoàng Văn Nam', specialty: 'Ung Bướu', experience: '19 năm kinh nghiệm', rating: 4.9, reviews: 194, status: 'available', img: 'https://images.unsplash.com/photo-1537368910025-700350fe46c7?w=100&h=100&fit=crop&crop=face' },
-  ]
 
   const renderStars = (rating) => {
     const stars = []

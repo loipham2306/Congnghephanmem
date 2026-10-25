@@ -11,22 +11,36 @@ const initialDoctors = [
 
 function normalizeDoctor(d) {
   if (!d) return null
+  const nv = d.nhanvien || {}
+  const ck = d.chuyenkhoa || {}
+
+  const fullName = nv.hoten || d.hoten || d.name || 'Bác Sĩ'
+  const deptName = typeof ck === 'string' ? ck : (ck.tenchuyenkhoa || d.chuyenkhoa || d.department || 'Khoa Mắt Kỹ Thuật Cao')
+  const phone = nv.sdt || d.sdt || d.phone || '0900000000'
+  const title = d.hocham ? `${d.hocham}` : (nv.chucvu || d.chucvu || d.title || 'Bác sĩ chuyên khoa')
+  const years = d.kinhnghiem ? `${d.kinhnghiem}+ năm` : (d.experience || '10+ năm')
+
   return {
     id: d.mabs || d.id,
     mabs: d.mabs || d.id,
-    manv: d.manv,
-    mack: d.mack,
-    name: d.hoten || d.name,
-    hoten: d.hoten || d.name,
-    department: d.chuyenkhoa || d.department || 'Đa Khoa',
-    chuyenkhoa: d.chuyenkhoa || d.department || 'Đa Khoa',
-    title: d.chucvu || d.title || (d.hocham ? `${d.hocham} Bác sĩ` : 'Bác sĩ chuyên khoa'),
-    sdt: d.sdt || d.phone,
-    phone: d.sdt || d.phone,
-    experience: d.experience || '8+ năm',
-    rating: d.rating || 4.9,
-    reviewsCount: d.reviewsCount || 95,
-    bio: d.bio || 'Bác sĩ tận tâm, giàu kinh nghiệm chuyên môn.'
+    manv: d.manv || nv.manv,
+    mack: d.mack || ck.mack,
+    name: fullName,
+    hoten: fullName,
+    department: deptName,
+    chuyenkhoa: deptName,
+    specialty: deptName,
+    dept: deptName,
+    title,
+    phone,
+    sdt: phone,
+    experience: years,
+    rating: d.rating || 5.0,
+    reviewsCount: d.reviewsCount || 120,
+    bio: d.bio || `Bác sĩ ${fullName} với ${years} kinh nghiệm chuyên sâu tại ${deptName}.`,
+    desc: d.desc || d.bio || `Bác sĩ ${fullName} với ${years} kinh nghiệm chuyên sâu tại ${deptName}.`,
+    img: d.img || 'https://images.unsplash.com/photo-1622253692010-333f2da6031d?w=300&h=250&fit=crop&crop=face',
+    delay: d.delay || 100
   }
 }
 
