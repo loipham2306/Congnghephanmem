@@ -3,25 +3,79 @@ import api from './api'
 const STORAGE_KEY = 'clinic_user'
 const TOKEN_KEY = 'clinic_token'
 
+function mapRole(vaitro) {
+  if (!vaitro) return 'PATIENT'
+  const v = String(vaitro).toLowerCase()
+  if (v.includes('admin') || v.includes('quanly')) return 'ADMIN'
+  if (v.includes('bacsi') || v.includes('doctor')) return 'DOCTOR'
+  if (v.includes('ketoan') || v.includes('accountant')) return 'ACCOUNTANT'
+  if (v.includes('letan') || v.includes('reception')) return 'RECEPTIONIST'
+  return 'PATIENT'
+}
+
 export const authService = {
-  async login(email, password) {
+  async login(emailOrUsername, password) {
     try {
-      const data = await api.post('/auth/login', { email, password })
-      if (data.token) {
-        localStorage.setItem(TOKEN_KEY, data.token)
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(data.user))
+      // Chuẩn hóa username: Nếu người dùng nhập email benhnhan@gmail.com thì thử username là phần trước @ hoặc giữ nguyên
+      const rawInput = (emailOrUsername || '').trim()
+      const username = rawInput.includes('@') ? rawInput.split('@')[0] : rawInput
+
+      let res = null
+      try {
+        res = await api.post('/auth/login', { username, password })
+      } catch (err) {
+        // Nếu thử username cắt ngắn không được mà input có @, thử gửi nguyên chuỗi
+        if (rawInput.includes('@')) {
+          res = await api.post('/auth/login', { username: rawInput, password })
+        } else {
+          throw err
+        }
       }
-      return data
-    } catch {
-      // Mock login fallback if backend isn't running
-      const isPatient = email?.includes('benhnhan') || email?.includes('patient') || email?.includes('an.nguyen') || (!email?.includes('admin') && !email?.includes('bacsi') && !email?.includes('hung') && !email?.includes('lan'))
+
+      // Backend trả về: { message, user: { user: { matk, vaitro, trangthai }, token } } hoặc tương đương
+      const token = res.token || res.user?.token || res.data?.token
+      const rawUser = res.user?.user || res.user || res.data?.user || {}
+
+      const mappedUser = {
+        id: rawUser.matk || rawUser.mabn || 1,
+        matk: rawUser.matk,
+        mabn: rawUser.mabn,
+        mabs: rawUser.mabs,
+        username: rawUser.tendangnhap || username,
+        fullName: rawUser.hoten || rawUser.tendangnhap || username,
+        email: rawUser.email || (rawInput.includes('@') ? rawInput : `${username}@phongkham.vn`),
+        role: mapRole(rawUser.vaitro),
+        rawRole: rawUser.vaitro,
+        status: rawUser.trangthai || 'HoatDong'
+      }
+
+      if (token) {
+        localStorage.setItem(TOKEN_KEY, token)
+        localStorage.setItem('token', token)
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(mappedUser))
+      }
+
+      return {
+        success: true,
+        message: res.message || 'Đăng nhập thành công',
+        token,
+        user: mappedUser
+      }
+    } catch (error) {
+      console.warn('[authService] Đăng nhập backend lỗi, dùng mock fallback:', error.message)
+      // Mock login fallback if backend isn't reachable or credentials don't exist yet
+      const isPatient = emailOrUsername?.includes('benhnhan') || emailOrUsername?.includes('patient') || (!emailOrUsername?.includes('admin') && !emailOrUsername?.includes('bacsi') && !emailOrUsername?.includes('ketoan'))
+      const mockRole = emailOrUsername?.includes('admin') ? 'ADMIN' : (emailOrUsername?.includes('bacsi') ? 'DOCTOR' : (emailOrUsername?.includes('ketoan') ? 'ACCOUNTANT' : 'PATIENT'))
       const mockUser = {
-        id: isPatient ? 1 : 1,
-        fullName: isPatient ? 'Nguyễn Văn An' : (email?.includes('bacsi') ? 'BS. CKII. Trần Văn Hùng' : 'Quản Trị Viên'),
-        email: email || (isPatient ? 'benhnhan@gmail.com' : 'admin@phongkham.vn'),
-        role: isPatient ? 'PATIENT' : (email?.includes('bacsi') ? 'DOCTOR' : 'ADMIN')
+        id: 1,
+        matk: 1,
+        fullName: mockRole === 'DOCTOR' ? 'BS. CKII. Trần Văn Hùng' : (mockRole === 'ADMIN' ? 'Quản Trị Viên' : (mockRole === 'ACCOUNTANT' ? 'Kế Toán Viên' : 'Nguyễn Văn An')),
+        email: emailOrUsername || 'benhnhan@gmail.com',
+        role: mockRole,
+        status: 'HoatDong'
       }
       localStorage.setItem(TOKEN_KEY, 'mock-jwt-token')
+      localStorage.setItem('token', 'mock-jwt-token')
       localStorage.setItem(STORAGE_KEY, JSON.stringify(mockUser))
       return { success: true, token: 'mock-jwt-token', user: mockUser }
     }
@@ -29,9 +83,18 @@ export const authService = {
 
   async register(userData) {
     try {
-      return await api.post('/auth/register', userData)
-    } catch {
-      return { success: true, message: 'Đăng ký tài khoản thành công!' }
+      const payload = {
+        username: userData.username || (userData.email ? userData.email.split('@')[0] : `user_${Date.now()}`),
+        password: userData.password,
+        hoten: userData.fullName || userData.hoten || 'Bệnh Nhân Mới',
+        gioitinh: userData.gender === 'Nữ' || userData.gioitinh === 'Nu' ? 'Nu' : 'Nam',
+        ngaysinh: userData.birthday || userData.ngaysinh || '2000-01-01',
+        sdt: userData.phone || userData.sdt || '0900000000'
+      }
+      return await api.post('/auth/register', payload)
+    } catch (error) {
+      console.warn('[authService] Đăng ký backend lỗi, fallback:', error.message)
+      return { success: true, message: 'Đăng ký tài khoản thành công (Offline mode)!' }
     }
   },
 
@@ -42,11 +105,12 @@ export const authService = {
 
   logout() {
     localStorage.removeItem(TOKEN_KEY)
+    localStorage.removeItem('token')
     localStorage.removeItem(STORAGE_KEY)
   },
 
   isAuthenticated() {
-    return !!localStorage.getItem(TOKEN_KEY)
+    return !!(localStorage.getItem(TOKEN_KEY) || localStorage.getItem('token'))
   }
 }
 
