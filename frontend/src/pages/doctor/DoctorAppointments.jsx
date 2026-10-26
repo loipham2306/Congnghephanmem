@@ -1,30 +1,55 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import DoctorLayout from '../../components/layout/DoctorLayout'
-
-const INITIAL_APPOINTMENTS = [
-  { id: 1, code: 'LH001', patientName: 'Nguyễn Văn An', phone: '0901 234 567', timeSlot: '08:00 - 08:30', date: '2026-10-10', type: 'Tái khám định kỳ', status: 'CONFIRMED', notes: 'Khám kiểm tra huyết áp và điện tim' },
-  { id: 2, code: 'LH002', patientName: 'Trần Thị Mai', phone: '0912 345 678', timeSlot: '08:30 - 09:00', date: '2026-10-10', type: 'Khám mới', status: 'CONFIRMED', notes: 'Ho rát họng, khàn tiếng' },
-  { id: 3, code: 'LH003', patientName: 'Lê Hoàng Long', phone: '0987 654 321', timeSlot: '09:00 - 09:30', date: '2026-10-10', type: 'Khám chuyên khoa', status: 'PENDING', notes: 'Đau đầu, chóng mặt kéo dài' },
-  { id: 4, code: 'LH004', patientName: 'Phạm Hương Giang', phone: '0933 221 100', timeSlot: '10:00 - 10:30', date: '2026-10-10', type: 'Tái khám', status: 'CONFIRMED', notes: 'Theo dõi đơn thuốc viêm dạ dày' },
-  { id: 5, code: 'LH005', patientName: 'Vũ Đức Minh', phone: '0978 112 233', timeSlot: '10:30 - 11:00', date: '2026-10-10', type: 'Khám mới', status: 'CANCELLED', notes: 'Bệnh nhân bận việc đột xuất xin dời lịch' },
-  { id: 6, code: 'LH006', patientName: 'Đặng Thùy Dung', phone: '0944 556 677', timeSlot: '14:00 - 14:30', date: '2026-10-10', type: 'Tái khám tim mạch', status: 'CONFIRMED', notes: 'Mang theo kết quả siêu âm tim' }
-]
+import appointmentService from '../../services/appointmentService'
+import { useAuth } from '../../hooks/useAuth'
 
 export default function DoctorAppointments() {
-  const [appointments, setAppointments] = useState(INITIAL_APPOINTMENTS)
+  const { user } = useAuth()
+  const todayStr = new Date().toISOString().split('T')[0]
+  
+  const [appointments, setAppointments] = useState([])
+  const [loading, setLoading] = useState(true)
   const [searchTerm, setSearchTerm] = useState('')
   const [statusFilter, setStatusFilter] = useState('ALL')
-  const [selectedDate, setSelectedDate] = useState('2026-10-10')
+  const [selectedDate, setSelectedDate] = useState(todayStr)
+
+  const fetchAppointments = async () => {
+    setLoading(true)
+    try {
+      const data = await appointmentService.getAll()
+      // Nếu là Bác sĩ đăng nhập, ưu tiên lọc lịch hẹn của bác sĩ
+      const doctorApts = (user?.role === 'DOCTOR' && user?.fullName)
+        ? data.filter(a => a.doctorName?.toLowerCase().includes(user.fullName.toLowerCase()) || !a.doctorName)
+        : data
+      setAppointments(doctorApts.length > 0 ? doctorApts : data)
+    } catch (err) {
+      console.warn('Lỗi tải lịch khám:', err)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  useEffect(() => {
+    fetchAppointments()
+  }, [user])
 
   const filtered = appointments.filter(a => {
-    const matchSearch = a.patientName.toLowerCase().includes(searchTerm.toLowerCase()) || a.phone.includes(searchTerm)
+    const aptDate = a.appointmentDate || a.date
+    const matchSearch = (a.patientName || '').toLowerCase().includes(searchTerm.toLowerCase()) || 
+      (a.phone || '').includes(searchTerm) ||
+      (a.code || '').toLowerCase().includes(searchTerm.toLowerCase())
     const matchStatus = statusFilter === 'ALL' || a.status === statusFilter
-    const matchDate = selectedDate ? a.date === selectedDate : true
+    const matchDate = selectedDate ? aptDate === selectedDate : true
     return matchSearch && matchStatus && matchDate
   })
 
-  const handleUpdateStatus = (id, newStatus) => {
-    setAppointments(appointments.map(a => a.id === id ? { ...a, status: newStatus } : a))
+  const handleUpdateStatus = async (id, newStatus) => {
+    try {
+      await appointmentService.updateStatus(id, newStatus)
+      setAppointments(prev => prev.map(a => a.id === id ? { ...a, status: newStatus } : a))
+    } catch (err) {
+      console.error('Lỗi cập nhật trạng thái:', err)
+    }
   }
 
   return (
@@ -101,9 +126,9 @@ export default function DoctorAppointments() {
           <div className="col-12 col-md-2 text-md-end">
             <button 
               className="btn btn-outline-secondary w-100"
-              onClick={() => { setSearchTerm(''); setStatusFilter('ALL'); setSelectedDate('2026-10-10'); }}
+              onClick={() => { setSearchTerm(''); setStatusFilter('ALL'); setSelectedDate(''); }}
             >
-              <i className="bi bi-arrow-counterclockwise me-1"></i> Đặt lại
+              <i className="bi bi-arrow-counterclockwise me-1"></i> Tất cả ngày
             </button>
           </div>
         </div>

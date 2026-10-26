@@ -70,6 +70,7 @@ export const medicalRecordService = {
     try {
       const payload = {
         mabn: Number(data.mabn || data.patientId),
+        malh: data.malh ? Number(data.malh) : undefined,
         trieuchung: data.symptoms || data.trieuchung || 'Không có triệu chứng bất thường',
         chandoan: data.diagnosis || data.chandoan || 'Khám bệnh định kỳ',
         ketluan: data.treatment || data.ketluan || 'Theo dõi thêm',

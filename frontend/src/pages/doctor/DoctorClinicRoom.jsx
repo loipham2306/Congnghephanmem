@@ -1,10 +1,17 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import DoctorLayout from '../../components/layout/DoctorLayout'
+import appointmentService from '../../services/appointmentService'
+import medicineService from '../../services/medicineService'
+import medicalRecordService from '../../services/medicalRecordService'
+import prescriptionService from '../../services/prescriptionService'
+import { useAuth } from '../../hooks/useAuth'
 import './doctor.css'
 
 const INITIAL_QUEUE = [
   {
     id: 1,
+    malh: 1,
+    mabn: 1,
     stt: '01',
     patientCode: 'BN001',
     name: 'Nguyễn Văn An',
@@ -19,107 +26,122 @@ const INITIAL_QUEUE = [
     status: 'IN_PROGRESS',
     registeredTime: '07:45',
     diagnosedHistory: 'Tăng huyết áp vô căn (2 năm), Rối loạn mỡ máu'
-  },
-  {
-    id: 2,
-    stt: '02',
-    patientCode: 'BN002',
-    name: 'Trần Thị Mai',
-    age: 32,
-    gender: 'Nữ',
-    phone: '0912 345 678',
-    address: 'Quận 10, TP.HCM',
-    insurance: 'BHYT-GD4799876543210',
-    allergies: 'Không có tiền sử dị ứng',
-    vitalSigns: { bp: '110/70', pulse: 82, temp: 37.5, spo2: 99, weight: 52, height: 158 },
-    reason: 'Ho kéo dài 3 ngày, rát họng, khàn tiếng',
-    status: 'WAITING',
-    registeredTime: '08:05',
-    diagnosedHistory: 'Viêm họng hạt cấp tính'
-  },
-  {
-    id: 3,
-    stt: '03',
-    patientCode: 'BN003',
-    name: 'Lê Hoàng Long',
-    age: 45,
-    gender: 'Nam',
-    phone: '0987 654 321',
-    address: 'Bình Thạnh, TP.HCM',
-    insurance: 'Khám Dịch Vụ',
-    allergies: 'Dị ứng phấn hoa',
-    vitalSigns: { bp: '120/80', pulse: 75, temp: 36.5, spo2: 98, weight: 72, height: 172 },
-    reason: 'Đau đầu âm ỉ vùng chẩm, chóng mặt khi thức dậy',
-    status: 'WAITING',
-    registeredTime: '08:20',
-    diagnosedHistory: 'Thiểu năng tuần hoàn não'
-  },
-  {
-    id: 4,
-    stt: '04',
-    patientCode: 'BN004',
-    name: 'Phạm Hương Giang',
-    age: 28,
-    gender: 'Nữ',
-    phone: '0933 221 100',
-    address: 'Quận 3, TP.HCM',
-    insurance: 'BHYT-DN4791122334455',
-    allergies: 'Không có',
-    vitalSigns: { bp: '105/65', pulse: 80, temp: 36.7, spo2: 99, weight: 48, height: 160 },
-    reason: 'Tái khám định kỳ theo lịch hẹn',
-    status: 'WAITING',
-    registeredTime: '08:40',
-    diagnosedHistory: 'Viêm loét dạ dày nhẹ'
-  },
-  {
-    id: 5,
-    stt: '05',
-    patientCode: 'BN005',
-    name: 'Hoàng Minh Tuấn',
-    age: 52,
-    gender: 'Nam',
-    phone: '0978 112 233',
-    address: 'Tân Bình, TP.HCM',
-    insurance: 'Khám Dịch Vụ',
-    allergies: 'Không rõ',
-    vitalSigns: { bp: '140/90', pulse: 88, temp: 37.0, spo2: 97, weight: 80, height: 165 },
-    reason: 'Khó thở khi gắng sức leo cầu thang',
-    status: 'WAITING',
-    registeredTime: '09:00',
-    diagnosedHistory: 'Bệnh tim thiếu máu cục bộ'
   }
 ]
 
 const SAMPLE_MEDICINES = [
-  { id: 1, name: 'Amlodipine 5mg', unit: 'Viên', defaultDosage: '1 viên/ngày (Sáng sau ăn)', price: 3500 },
-  { id: 2, name: 'Losartan 50mg', unit: 'Viên', defaultDosage: '1 viên/ngày (Sáng sau ăn)', price: 5200 },
-  { id: 3, name: 'Atorvastatin 20mg', unit: 'Viên', defaultDosage: '1 viên/ngày (Tối trước ngủ)', price: 7800 },
-  { id: 4, name: 'Paracetamol 500mg', unit: 'Viên', defaultDosage: '1 viên x 3 lần khi sốt > 38.5 độ', price: 1200 },
-  { id: 5, name: 'Amoxicillin 500mg', unit: 'Viên', defaultDosage: '1 viên x 2 lần sau ăn', price: 2800 },
-  { id: 6, name: 'Esomeprazole 40mg', unit: 'Viên', defaultDosage: '1 viên/ngày trước ăn sáng 30 phút', price: 8500 }
+  { id: 1, mathuoc: 1, name: 'Amlodipine 5mg', tenthuoc: 'Amlodipine 5mg', unit: 'Viên', donvitinh: 'Viên', defaultDosage: '1 viên/ngày (Sáng sau ăn)', price: 3500, dongia: 3500 },
+  { id: 2, mathuoc: 2, name: 'Losartan 50mg', tenthuoc: 'Losartan 50mg', unit: 'Viên', donvitinh: 'Viên', defaultDosage: '1 viên/ngày (Sáng sau ăn)', price: 5200, dongia: 5200 },
+  { id: 3, mathuoc: 3, name: 'Atorvastatin 20mg', tenthuoc: 'Atorvastatin 20mg', unit: 'Viên', donvitinh: 'Viên', defaultDosage: '1 viên/ngày (Tối trước ngủ)', price: 7800, dongia: 7800 },
+  { id: 4, mathuoc: 4, name: 'Paracetamol 500mg', tenthuoc: 'Paracetamol 500mg', unit: 'Viên', donvitinh: 'Viên', defaultDosage: '1 viên x 3 lần khi sốt > 38.5 độ', price: 1200, dongia: 1200 },
+  { id: 5, mathuoc: 5, name: 'Amoxicillin 500mg', tenthuoc: 'Amoxicillin 500mg', unit: 'Viên', donvitinh: 'Viên', defaultDosage: '1 viên x 2 lần sau ăn', price: 2800, dongia: 2800 },
+  { id: 6, mathuoc: 6, name: 'Esomeprazole 40mg', tenthuoc: 'Esomeprazole 40mg', unit: 'Viên', donvitinh: 'Viên', defaultDosage: '1 viên/ngày trước ăn sáng 30 phút', price: 8500, dongia: 8500 }
 ]
 
 export default function DoctorClinicRoom() {
+  const { user } = useAuth()
   const [queue, setQueue] = useState(INITIAL_QUEUE)
+  const [medicinesList, setMedicinesList] = useState(SAMPLE_MEDICINES)
   const [selectedPatientId, setSelectedPatientId] = useState(1)
   const [filterStatus, setFilterStatus] = useState('ALL')
   const [alertSuccess, setAlertSuccess] = useState('')
 
+  // Nạp dữ liệu thực tế từ DB khi mount
+  useEffect(() => {
+    async function loadData() {
+      try {
+        const [aptsData, medsData] = await Promise.all([
+          appointmentService.getAll(),
+          medicineService.getAll()
+        ])
+
+        if (Array.isArray(medsData) && medsData.length > 0) {
+          setMedicinesList(medsData)
+        }
+
+        if (Array.isArray(aptsData) && aptsData.length > 0) {
+          const todayStr = new Date().toISOString().split('T')[0]
+          // Ưu tiên lịch hẹn hôm nay của bác sĩ hoặc tất cả lịch hẹn hôm nay
+          const todayApts = aptsData.filter(a => {
+            const aDate = a.appointmentDate || a.date
+            return aDate === todayStr
+          })
+          const activeApts = todayApts.length > 0 ? todayApts : aptsData
+
+          const mappedQueue = activeApts.map((apt, idx) => {
+            const age = apt.benhnhan?.ngaysinh 
+              ? (new Date().getFullYear() - new Date(apt.benhnhan.ngaysinh).getFullYear()) 
+              : 30
+
+            return {
+              id: apt.id,
+              malh: apt.malh || apt.id,
+              mabn: apt.mabn || (apt.benhnhan?.mabn || 1),
+              stt: String(idx + 1).padStart(2, '0'),
+              patientCode: apt.code ? `BN${String(apt.mabn || apt.id).padStart(3, '0')}` : `BN00${apt.id}`,
+              name: apt.patientName || apt.benhnhan?.hoten || 'Bệnh Nhân',
+              age: age > 0 ? age : 28,
+              gender: apt.benhnhan?.gioitinh === 'Nu' ? 'Nữ' : 'Nam',
+              phone: apt.phone || apt.benhnhan?.sdt || '0901234567',
+              address: apt.benhnhan?.diachi || 'TP. Hồ Chí Minh',
+              insurance: apt.benhnhan?.sobhyt ? `BHYT-${apt.benhnhan.sobhyt}` : 'Khám Dịch Vụ',
+              allergies: apt.benhnhan?.hosobenhan?.diung || 'Không ghi nhận dị ứng',
+              vitalSigns: { bp: '120/80', pulse: 78, temp: 36.8, spo2: 98, weight: 65, height: 168 },
+              reason: apt.notes || apt.lydokham || 'Khám sức khỏe định kỳ',
+              status: apt.status === 'COMPLETED' ? 'COMPLETED' : (idx === 0 ? 'IN_PROGRESS' : 'WAITING'),
+              registeredTime: apt.timeSlot || '08:00',
+              diagnosedHistory: apt.benhnhan?.hosobenhan?.tiensubenh || 'Chưa ghi nhận tiền sử bệnh lý'
+            }
+          })
+
+          setQueue(mappedQueue)
+          if (mappedQueue[0]) {
+            setSelectedPatientId(mappedQueue[0].id)
+            setVitalSigns(mappedQueue[0].vitalSigns)
+            setSymptoms(mappedQueue[0].reason)
+          }
+        }
+      } catch (err) {
+        console.warn('Lỗi nạp dữ liệu bàn khám:', err)
+      }
+    }
+
+    loadData()
+  }, [user])
+
   // Dữ liệu bệnh nhân hiện tại
-  const currentPatient = queue.find(p => p.id === selectedPatientId) || queue[0]
+  const currentPatient = queue.find(p => p.id === selectedPatientId) || queue[0] || {
+    id: 1,
+    malh: 1,
+    mabn: 1,
+    stt: '01',
+    patientCode: 'BN001',
+    name: 'Đang tải...',
+    age: 30,
+    gender: 'Nam',
+    phone: '',
+    address: '',
+    insurance: 'Khám Dịch Vụ',
+    allergies: 'Không ghi nhận',
+    vitalSigns: { bp: '120/80', pulse: 78, temp: 36.8, spo2: 98, weight: 65, height: 168 },
+    reason: 'Đang tải dữ liệu...',
+    status: 'WAITING',
+    registeredTime: '08:00',
+    diagnosedHistory: ''
+  }
 
   // Form State khám bệnh
-  const [vitalSigns, setVitalSigns] = useState(currentPatient.vitalSigns)
-  const [symptoms, setSymptoms] = useState(currentPatient.reason)
+  const [vitalSigns, setVitalSigns] = useState(currentPatient.vitalSigns || { bp: '120/80', pulse: 78, temp: 36.8, spo2: 98, weight: 65, height: 168 })
+  const [symptoms, setSymptoms] = useState(currentPatient.reason || '')
   const [icdCode, setIcdCode] = useState('I10 - Tăng huyết áp vô căn (nguyên phát)')
-  const [diagnosis, setDiagnosis] = useState('Tăng huyết áp vô căn độ 1 - Rối loạn lipid máu nhẹ')
-  const [advice, setAdvice] = useState('Ăn nhạt, hạn chế mỡ động vật, uống nhiều nước, tập thể dục nhẹ nhàng 30p mỗi ngày.')
-  const [followUpDate, setFollowUpDate] = useState('2026-10-24')
+  const [diagnosis, setDiagnosis] = useState('Viêm kết mạc cấp tính - Đau mỏi mắt')
+  const [advice, setAdvice] = useState('Uống và nhỏ thuốc đúng giờ, hạn chế nhìn màn hình điện tử liên tục, tái khám sau 7 ngày.')
+  const [followUpDate, setFollowUpDate] = useState(new Date(Date.now() + 7 * 86400000).toISOString().split('T')[0])
 
   // Đơn thuốc
   const [prescriptionItems, setPrescriptionItems] = useState([
-    { id: 1, medicine: 'Amlodipine 5mg', quantity: 14, unit: 'Viên', usage: 'Ngày 1 viên uống buổi sáng sau ăn' },
-    { id: 2, medicine: 'Atorvastatin 20mg', quantity: 14, unit: 'Viên', usage: 'Ngày 1 viên uống buổi tối trước khi đi ngủ' }
+    { id: 1, mathuoc: 9, medicine: 'Tobradex Nhỏ Mắt', quantity: 2, unit: 'Lọ', usage: 'Nhỏ mắt 2 giọt/lần, ngày 3 lần' },
+    { id: 2, mathuoc: 1, medicine: 'Paracetamol 500mg', quantity: 10, unit: 'Viên', usage: 'Ngày 1 viên x 2 lần sau ăn khi đau' }
   ])
 
   const [selectedMedToAdd, setSelectedMedToAdd] = useState('')
@@ -130,8 +152,9 @@ export default function DoctorClinicRoom() {
   const CONSULTATION_FEE = 150000 // Tiền công khám 150.000đ
 
   const getMedPrice = (name) => {
-    const found = SAMPLE_MEDICINES.find(m => m.name === name)
-    return found ? found.price : 3500
+    const list = medicinesList.length > 0 ? medicinesList : SAMPLE_MEDICINES
+    const found = list.find(m => (m.name || m.tenthuoc) === name)
+    return found ? Number(found.price || found.dongia || 3500) : 3500
   }
 
   const totalMedFee = prescriptionItems.reduce((sum, item) => {
@@ -146,8 +169,8 @@ export default function DoctorClinicRoom() {
   // Chọn bệnh nhân
   const handleSelectPatient = (patient) => {
     setSelectedPatientId(patient.id)
-    setVitalSigns(patient.vitalSigns)
-    setSymptoms(patient.reason)
+    setVitalSigns(patient.vitalSigns || { bp: '120/80', pulse: 78, temp: 36.8, spo2: 98, weight: 65, height: 168 })
+    setSymptoms(patient.reason || '')
     setAlertSuccess('')
   }
 
@@ -172,94 +195,62 @@ export default function DoctorClinicRoom() {
     }
   }
 
-  // Hoàn thành ca khám & Lưu vào hệ thống
-  const handleCompleteExamination = () => {
+  // Hoàn thành ca khám & Lưu vào hệ thống CSDL Supabase
+  const handleCompleteExamination = async () => {
     setIsSaving(true)
-    setTimeout(() => {
-      // 1. Cập nhật trạng thái bệnh nhân trong hàng chờ
+    try {
+      // 1. Tạo phiếu khám bệnh trên Supabase CSDL qua API
+      let examResult = null
+      if (currentPatient?.mabn) {
+        examResult = await medicalRecordService.create({
+          mabn: currentPatient.mabn,
+          malh: currentPatient.malh,
+          symptoms: symptoms,
+          diagnosis: diagnosis,
+          treatment: advice
+        })
+      }
+
+      const examId = examResult?.malsk || examResult?.id
+
+      // 2. Nếu có đơn thuốc, lưu đơn thuốc vào Supabase CSDL
+      let presResult = null
+      if (examId && prescriptionItems.length > 0) {
+        try {
+          presResult = await prescriptionService.create({
+            malsk: examId,
+            notes: advice,
+            medicines: prescriptionItems.map(p => ({
+              mathuoc: p.mathuoc || 1,
+              soluong: p.quantity,
+              lieudung: p.usage,
+              thoigiansudung: '7 ngày'
+            }))
+          })
+        } catch (presErr) {
+          console.warn('Lỗi tạo đơn thuốc backend:', presErr.message)
+        }
+      }
+
+      // 3. Cập nhật trạng thái lịch hẹn thành DaKham (COMPLETED)
+      if (currentPatient?.malh) {
+        try {
+          await appointmentService.updateStatus(currentPatient.malh, 'COMPLETED')
+        } catch (aptErr) {
+          console.warn('Lỗi cập nhật lịch hẹn:', aptErr.message)
+        }
+      }
+
+      // 4. Cập nhật trạng thái bệnh nhân trong hàng chờ
       setQueue(prev => prev.map(p => 
         p.id === selectedPatientId ? { ...p, status: 'COMPLETED' } : p
       ))
 
-      // 2. Tạo mã hồ sơ
-      const randomNum = Math.floor(Math.random() * 90) + 10
-      const recCode = `BA00${randomNum}`
-      const presCode = `DT00${randomNum}`
+      const recCode = examResult?.code || `BA00${currentPatient.id}`
+      const presCode = presResult?.code || `DT00${currentPatient.id}`
+      const invCode = `HD00${currentPatient.id}`
 
-      // 3. Lưu bệnh án vào localStorage
-      const newRecord = {
-        id: Date.now(),
-        code: recCode,
-        patientName: currentPatient.name,
-        age: currentPatient.age,
-        gender: currentPatient.gender,
-        date: new Date().toISOString().split('T')[0],
-        diagnosis: diagnosis,
-        symptoms: symptoms,
-        treatment: prescriptionItems.map(p => `${p.medicine} (${p.quantity} ${p.unit})`).join(', ') || 'Nghỉ ngơi, theo dõi',
-        bp: `${vitalSigns.bp} mmHg`,
-        status: 'Đã hoàn thành'
-      }
-      try {
-        const existingRecords = JSON.parse(localStorage.getItem('clinic_doctor_records') || '[]')
-        localStorage.setItem('clinic_doctor_records', JSON.stringify([newRecord, ...existingRecords]))
-      } catch (err) {
-        console.error(err)
-      }
-
-      // 4. Lưu đơn thuốc vào localStorage
-      const newPrescription = {
-        id: Date.now(),
-        code: presCode,
-        patientName: currentPatient.name,
-        age: currentPatient.age,
-        date: new Date().toISOString().split('T')[0],
-        diagnosis: diagnosis,
-        medicines: prescriptionItems.map(p => ({
-          name: p.medicine,
-          quantity: p.quantity,
-          unit: p.unit,
-          usage: p.usage
-        })),
-        status: 'Chờ lấy thuốc'
-      }
-      try {
-        const existingPrescriptions = JSON.parse(localStorage.getItem('clinic_doctor_prescriptions') || '[]')
-        localStorage.setItem('clinic_doctor_prescriptions', JSON.stringify([newPrescription, ...existingPrescriptions]))
-      } catch (err) {
-        console.error(err)
-      }
-
-      // 5. Lưu Hóa đơn tạm tính vào localStorage cho Quầy Thu Ngân
-      const invCode = `HD00${randomNum}`
-      const newInvoice = {
-        id: Date.now(),
-        code: invCode,
-        patientName: currentPatient.name,
-        patientCode: currentPatient.patientCode,
-        phone: currentPatient.phone,
-        date: new Date().toISOString().split('T')[0],
-        totalAmount: totalInvoiceAmount,
-        status: 'UNPAID',
-        paymentMethod: 'Chưa thanh toán (Chờ quét QR / tiền mặt)',
-        items: [
-          { name: 'Công khám chuyên khoa Nội', price: CONSULTATION_FEE, quantity: 1 },
-          ...prescriptionItems.map(p => ({
-            name: `Thuốc ${p.medicine}`,
-            price: getMedPrice(p.medicine),
-            quantity: p.quantity,
-            unit: p.unit
-          }))
-        ]
-      }
-      try {
-        const existingInvoices = JSON.parse(localStorage.getItem('clinic_invoices') || '[]')
-        localStorage.setItem('clinic_invoices', JSON.stringify([newInvoice, ...existingInvoices]))
-      } catch (err) {
-        console.error(err)
-      }
-
-      // 6. Cập nhật dữ liệu tóm tắt và mở Modal
+      // 5. Cập nhật dữ liệu tóm tắt và mở Modal
       setSavedDataSummary({
         recordCode: recCode,
         prescriptionCode: presCode,
@@ -269,10 +260,14 @@ export default function DoctorClinicRoom() {
         medicineCount: prescriptionItems.length,
         totalAmount: totalInvoiceAmount
       })
-      setAlertSuccess(`Đã lưu Bệnh án #${recCode}, Toa thuốc #${presCode} & Hóa đơn #${invCode} (${totalInvoiceAmount.toLocaleString('vi-VN')} đ)!`)
-      setIsSaving(false)
+      setAlertSuccess(`Đã lưu thành công Bệnh án #${recCode} & Toa thuốc #${presCode} lên cơ sở dữ liệu!`)
       setShowSavedModal(true)
-    }, 350)
+    } catch (err) {
+      console.error('Lỗi lưu ca khám:', err)
+      alert('Có lỗi xảy ra khi lưu ca khám lên cơ sở dữ liệu!')
+    } finally {
+      setIsSaving(false)
+    }
   }
 
   // Vắng mặt
@@ -286,13 +281,15 @@ export default function DoctorClinicRoom() {
   const handleAddMedicine = (e) => {
     e.preventDefault()
     if (!selectedMedToAdd) return
-    const medObj = SAMPLE_MEDICINES.find(m => m.name === selectedMedToAdd)
+    const list = medicinesList.length > 0 ? medicinesList : SAMPLE_MEDICINES
+    const medObj = list.find(m => (m.name || m.tenthuoc) === selectedMedToAdd)
     const newItem = {
       id: Date.now(),
+      mathuoc: medObj?.mathuoc || medObj?.id || 1,
       medicine: selectedMedToAdd,
       quantity: Number(medQtyToAdd) || 1,
-      unit: medObj ? medObj.unit : 'Viên',
-      usage: medUsageToAdd || (medObj ? medObj.defaultDosage : 'Theo chỉ định của bác sĩ')
+      unit: medObj ? (medObj.unit || medObj.donvitinh || 'Viên') : 'Viên',
+      usage: medUsageToAdd || (medObj?.defaultDosage || 'Ngày 1-2 lần sau ăn theo chỉ định của bác sĩ')
     }
     setPrescriptionItems([...prescriptionItems, newItem])
     setSelectedMedToAdd('')
@@ -700,14 +697,22 @@ export default function DoctorClinicRoom() {
                       value={selectedMedToAdd}
                       onChange={(e) => {
                         setSelectedMedToAdd(e.target.value)
-                        const found = SAMPLE_MEDICINES.find(m => m.name === e.target.value)
-                        if (found) setMedUsageToAdd(found.defaultDosage)
+                        const list = medicinesList.length > 0 ? medicinesList : SAMPLE_MEDICINES
+                        const found = list.find(m => (m.name || m.tenthuoc) === e.target.value)
+                        if (found) setMedUsageToAdd(found.defaultDosage || 'Ngày 1-2 lần sau ăn theo chỉ định')
                       }}
                     >
-                      <option value="">-- Chọn thuốc --</option>
-                      {SAMPLE_MEDICINES.map(m => (
-                        <option key={m.id} value={m.name}>{m.name} ({m.price.toLocaleString('vi-VN')} đ/{m.unit})</option>
-                      ))}
+                      <option value="">-- Chọn thuốc trong kho Dược --</option>
+                      {(medicinesList.length > 0 ? medicinesList : SAMPLE_MEDICINES).map(m => {
+                        const mName = m.name || m.tenthuoc
+                        const mPrice = Number(m.price || m.dongia || 0)
+                        const mUnit = m.unit || m.donvitinh || 'Viên'
+                        return (
+                          <option key={m.id || m.mathuoc} value={mName}>
+                            {mName} ({mPrice.toLocaleString('vi-VN')} đ/{mUnit})
+                          </option>
+                        )
+                      })}
                     </select>
                   </div>
                   <div className="col-4 col-md-2">
