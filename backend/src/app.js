@@ -15,6 +15,8 @@ const statisticRoutes = require("./routers/statistic.router");
 const examinationRoutes = require("./routers/examination.router");
 const medicineRoutes = require("./routers/medicine.router");
 const prescriptionRoutes = require("./routers/prescription.router");
+const requestLoggerMiddleware = require("./middlewares/requestLogger.middleware");
+const sqlInjectionGuardMiddleware = require("./middlewares/sqlInjectionGuard.middleware");
 const errorMiddleware = require("./middlewares/error.middleware");
 const app = express();
 
@@ -50,6 +52,12 @@ app.use(
 app.use(morgan("dev")); // Log các request gửi lên server trong môi trường dev
 app.use(express.json()); // Phân tích dữ liệu JSON từ body request
 app.use(express.urlencoded({ extended: true })); // Phân tích dữ liệu từ urlencoded form
+
+// Gắn middleware truy vết Request ID và ghi log có cấu trúc
+app.use(requestLoggerMiddleware);
+
+// Gắn middleware kiểm soát bảo mật và ngăn chặn SQL Injection chủ động
+app.use(sqlInjectionGuardMiddleware);
 
 // ========================================================
 // 2. ROUTE KIỂM TRA HỆ THỐNG (HEALTH CHECK)

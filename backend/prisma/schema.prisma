@@ -18,6 +18,8 @@ model bacsi {
   nhanvien           nhanvien     @relation(fields: [mabs], references: [manv], onDelete: Cascade, map: "fk_bacsi_nhanvien")
   lichhen            lichhen[]
   lichsukham         lichsukham[]
+
+  @@index([mack], map: "idx_bacsi_mack")
 }
 
 /// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
@@ -37,6 +39,9 @@ model benhnhan {
   hosobenhan hosobenhan?
   lichhen    lichhen[]
   lichsukham lichsukham[]
+
+  @@index([hoten], map: "idx_benhnhan_hoten")
+  @@index([sdt], map: "idx_benhnhan_sdt")
 }
 
 /// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
@@ -49,6 +54,8 @@ model calamviec {
   maphong         Int
   phongkham       phongkham         @relation(fields: [maphong], references: [maphong], map: "fk_calamviec_phongkham")
   phanconglamviec phanconglamviec[]
+
+  @@index([ngay, maphong], map: "idx_calamviec_ngay_phong")
 }
 
 /// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
@@ -61,6 +68,9 @@ model chitietdichvukham {
   soluong    Int        @default(1)
   dichvu     dichvu     @relation(fields: [madv], references: [madv], map: "fk_ctdvk_dichvu")
   lichsukham lichsukham @relation(fields: [malsk], references: [malsk], onDelete: Cascade, map: "fk_ctdvk_lichsukham")
+
+  @@index([malsk], map: "idx_ctdvk_malsk")
+  @@index([madv], map: "idx_ctdvk_madv")
 }
 
 /// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
@@ -76,6 +86,7 @@ model chitietdonthuoc {
   thuoc          thuoc    @relation(fields: [mathuoc], references: [mathuoc], map: "fk_ctdt_thuoc")
 
   @@unique([madt, mathuoc], map: "uq_ctdt_dt_thuoc")
+  @@index([mathuoc], map: "idx_ctdt_mathuoc")
 }
 
 /// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
@@ -93,6 +104,11 @@ model chitiethoadon {
   donthuoc  donthuoc? @relation(fields: [madt], references: [madt], map: "fk_cthd_donthuoc")
   hoadon    hoadon    @relation(fields: [mahd], references: [mahd], onDelete: Cascade, map: "fk_cthd_hoadon")
   thuoc     thuoc?    @relation(fields: [mathuoc], references: [mathuoc], onDelete: Restrict, map: "fk_cthd_thuoc")
+
+  @@index([mahd], map: "idx_cthd_mahd")
+  @@index([mathuoc], map: "idx_cthd_mathuoc")
+  @@index([madv], map: "idx_cthd_madv")
+  @@index([madt], map: "idx_cthd_madt")
 }
 
 /// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
@@ -115,6 +131,8 @@ model dichvu {
   chitietdichvukham chitietdichvukham[]
   chitiethoadon     chitiethoadon[]
   chuyenkhoa        chuyenkhoa?         @relation(fields: [mack], references: [mack], map: "fk_dichvu_chuyenkhoa")
+
+  @@index([mack], map: "idx_dichvu_mack")
 }
 
 /// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
@@ -126,6 +144,8 @@ model donthuoc {
   chitietdonthuoc chitietdonthuoc[]
   chitiethoadon   chitiethoadon[]
   lichsukham      lichsukham        @relation(fields: [malsk], references: [malsk], onDelete: Cascade, map: "fk_donthuoc_lichsukham")
+
+  @@index([ngayke], map: "idx_donthuoc_ngayke")
 }
 
 /// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
@@ -141,6 +161,9 @@ model hoadon {
   chitiethoadon      chitiethoadon[]
   benhnhan           benhnhan                  @relation(fields: [mabn], references: [mabn], map: "fk_hoadon_benhnhan")
   lichsukham         lichsukham                @relation(fields: [malsk], references: [malsk], map: "fk_hoadon_lichsukham")
+
+  @@index([mabn], map: "idx_hoadon_mabn")
+  @@index([trangthaithanhtoan, ngaylap], map: "idx_hoadon_trangthai_ngay")
 }
 
 /// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
@@ -164,6 +187,10 @@ model lichhen {
   lydokham  String?                 @db.VarChar(255)
   bacsi     bacsi                   @relation(fields: [mabs], references: [mabs], map: "fk_lichhen_bacsi")
   benhnhan  benhnhan                @relation(fields: [mabn], references: [mabn], onDelete: Cascade, map: "fk_lichhen_benhnhan")
+
+  @@index([mabn], map: "idx_lichhen_mabn")
+  @@index([mabs], map: "idx_lichhen_mabs")
+  @@index([ngayhen, trangthai], map: "idx_lichhen_ngay_trangthai")
 }
 
 /// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
@@ -180,6 +207,10 @@ model lichsukham {
   hoadon            hoadon?
   bacsi             bacsi               @relation(fields: [mabs], references: [mabs], map: "fk_lichsukham_bacsi")
   benhnhan          benhnhan            @relation(fields: [mabn], references: [mabn], map: "fk_lichsukham_benhnhan")
+
+  @@index([mabn], map: "idx_lichsukham_mabn")
+  @@index([mabs], map: "idx_lichsukham_mabs")
+  @@index([ngay(sort: Desc)], map: "idx_lichsukham_ngay")
 }
 
 /// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
@@ -196,6 +227,9 @@ model nhanvien {
   bacsi           bacsi?
   taikhoan        taikhoan?         @relation(fields: [matk], references: [matk], map: "fk_nhanvien_taikhoan")
   phanconglamviec phanconglamviec[]
+
+  @@index([hoten], map: "idx_nhanvien_hoten")
+  @@index([chucvu], map: "idx_nhanvien_chucvu")
 }
 
 /// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
@@ -218,6 +252,8 @@ model phongkham {
   trangthai  trang_thai_phongkham_enum @default(SanSang)
   calamviec  calamviec[]
   chuyenkhoa chuyenkhoa                @relation(fields: [mack], references: [mack], map: "fk_phongkham_chuyenkhoa")
+
+  @@index([mack], map: "idx_phongkham_mack")
 }
 
 /// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
@@ -244,6 +280,10 @@ model thuoc {
   nhasanxuat      String?           @db.VarChar(100)
   chitietdonthuoc chitietdonthuoc[]
   chitiethoadon   chitiethoadon[]
+
+  @@index([tenthuoc], map: "idx_thuoc_tenthuoc")
+  @@index([soluongton], map: "idx_thuoc_soluongton")
+  @@index([hansudung], map: "idx_thuoc_hansudung")
 }
 
 enum chuc_vu_enum {
