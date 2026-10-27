@@ -296,7 +296,8 @@ export default function PatientProfile() {
       showToast('Cập nhật hồ sơ sức khỏe cá nhân thành công lên cơ sở dữ liệu!')
     } catch (err) {
       console.error('Lỗi lưu hồ sơ:', err)
-      showToast('Lỗi khi lưu thông tin. Vui lòng kiểm tra lại!')
+      const msg = err.response?.data?.message || err.message || 'Lỗi khi lưu thông tin. Vui lòng kiểm tra lại!'
+      showToast(`Không thể lưu: ${msg}`)
     } finally {
       setSaveLoading(false)
     }
@@ -1142,14 +1143,11 @@ export default function PatientProfile() {
                       value={editForm.bloodGroup}
                       onChange={(e) => setEditForm({ ...editForm, bloodGroup: e.target.value })}
                     >
-                      <option value="O+">O+ (Phổ biến)</option>
-                      <option value="A+">A+</option>
-                      <option value="B+">B+</option>
-                      <option value="AB+">AB+</option>
-                      <option value="O-">O- (Hiếm)</option>
-                      <option value="A-">A-</option>
-                      <option value="B-">B-</option>
-                      <option value="AB-">AB-</option>
+                      <option value="O">Nhóm máu O (Phổ biến)</option>
+                      <option value="A">Nhóm máu A</option>
+                      <option value="B">Nhóm máu B</option>
+                      <option value="AB">Nhóm máu AB</option>
+                      <option value="ChuaRo">Chưa xác định rõ</option>
                     </select>
                   </div>
 

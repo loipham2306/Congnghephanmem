@@ -63,14 +63,14 @@ export const invoiceService = {
   async getAll(params = {}) {
     try {
       const res = await api.get('/invoices', params)
-      const list = Array.isArray(res) ? res : (res.data || [])
-      if (list.length > 0) {
+      const list = Array.isArray(res) ? res : (Array.isArray(res?.data) ? res.data : [])
+      if (Array.isArray(list) && list.length > 0) {
         return list.map(normalizeInvoice)
       }
-      return initialInvoices
+      return list.map(normalizeInvoice)
     } catch (err) {
       console.warn('[invoiceService] Gọi /invoices lỗi, dùng fallback:', err.message)
-      return initialInvoices
+      return initialInvoices.map(normalizeInvoice)
     }
   },
 

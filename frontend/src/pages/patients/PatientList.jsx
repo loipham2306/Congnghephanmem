@@ -78,17 +78,17 @@ export default function PatientList() {
         </div>
       </div>
 
-      {/* 3. MODAL THÊM / SỬA BỆNH NHÂN - NỀN TIÊU ĐỀ MÀU XANH */}
+      {/* 3. MODAL THÊM / SỬA BỆNH NHÂN - GHIM THANH TIÊU ĐỀ & NÚT BẤM */}
       {showModal && (
-        <div className="modal show d-block" tabIndex="-1" style={{ backgroundColor: 'rgba(15, 23, 42, 0.55)', backdropFilter: 'blur(2px)' }}>
-          <div className="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
-            <div className="modal-content border-0 shadow-lg rounded-3 overflow-hidden">
+        <div className="modal show d-block" tabIndex="-1" style={{ backgroundColor: 'rgba(15, 23, 42, 0.55)', backdropFilter: 'blur(3px)', zIndex: 1055 }}>
+          <div className="modal-dialog modal-lg modal-dialog-centered" style={{ maxWidth: '780px' }}>
+            <div className="modal-content border-0 shadow-lg rounded-3 overflow-hidden d-flex flex-column" style={{ maxHeight: '90vh' }}>
               
-              {/* NỀN TIÊU ĐỀ MÀU XANH THEO YÊU CẦU */}
+              {/* NỀN TIÊU ĐỀ GRADIENT THƯƠNG HIỆU - GHIM CỐ ĐỊNH */}
               <div 
-                className="modal-header py-3 px-4 text-white border-0"
+                className="modal-header py-3 px-4 text-white border-0 flex-shrink-0 no-print"
                 style={{ 
-                  background: 'linear-gradient(135deg, #1e40af 0%, #175cdd 100%)'
+                  background: 'linear-gradient(135deg, #175cdd 0%, #10b981 100%)'
                 }}
               >
                 <div className="d-flex align-items-center gap-3">
@@ -116,14 +116,12 @@ export default function PatientList() {
                 ></button>
               </div>
 
-              {/* THÂN MODAL */}
-              <div className="modal-body p-4 bg-white">
-                <PatientForm 
-                  initialData={selectedPatient}
-                  onSubmit={handleCreatePatient}
-                  onCancel={() => setShowModal(false)}
-                />
-              </div>
+              {/* FORM BỆNH NHÂN VỚI BODY CUỘN VÀ FOOTER GHIM CỐ ĐỊNH */}
+              <PatientForm 
+                initialData={selectedPatient}
+                onSubmit={handleCreatePatient}
+                onCancel={() => setShowModal(false)}
+              />
 
             </div>
           </div>

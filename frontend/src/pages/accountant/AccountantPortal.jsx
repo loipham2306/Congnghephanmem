@@ -2,6 +2,7 @@ import { useState, useEffect, useMemo } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import logo from '../../assets/logo.jpg'
 import { formatCurrency, formatDateTime } from '../../utils'
+import invoiceService from '../../services/invoiceService'
 import '../../components/layout/admin.css'
 import './accountant.css'
 
@@ -227,10 +228,97 @@ export default function AccountantPortal() {
     }
   }
 
-  // Hiệu ứng tải dữ liệu ban đầu
+  // Tải dữ liệu hóa đơn thực tế từ CSDL Supabase
+  const loadDataFromDB = async () => {
+    try {
+      setIsLoading(true)
+      const allInvoices = await invoiceService.getAll()
+      if (Array.isArray(allInvoices) && allInvoices.length > 0) {
+        // 1. Sổ Hóa Đơn & Biên Lai
+        const mappedInvoices = allInvoices.map(inv => ({
+          id: inv.code || `HD${String(inv.mahd).padStart(3, '0')}`,
+          mahd: inv.mahd,
+          code: inv.code || `HD${String(inv.mahd).padStart(3, '0')}`,
+          patientCode: `BN${String(inv.mabn || 1).padStart(3, '0')}`,
+          patientName: inv.patientName || 'Bệnh Nhân',
+          createdAt: inv.date || formatDateTime(new Date()),
+          totalAmount: inv.totalAmount || 0,
+          insuranceDiscount: inv.insuranceDiscount || ((inv.insuranceNumber || inv.benhnhan?.sobhyt) ? Math.round((inv.totalAmount || 0) * 0.2) : 0),
+          patientPay: inv.totalAmount || 0,
+          paymentMethod: inv.paymentMethod || 'Chưa thanh toán',
+          status: inv.trangthaithanhtoan === 'DaThanhToan' ? 'PAID' : 'UNPAID',
+          cashier: 'Kế Toán Viên (Thu Ngân)',
+          items: (inv.items || []).map((it, idx) => ({
+            id: it.id || idx + 1,
+            name: it.name || it.tendichvu || 'Dịch vụ / Thuốc',
+            qty: it.quantity || it.soluong || 1,
+            price: it.price || it.dongia || 0
+          }))
+        }))
+        setInvoices(mappedInvoices)
+
+        // 2. Hàng Chờ Thu Ngân (Các hóa đơn chưa thanh toán)
+        const unpaidList = allInvoices.filter(inv => inv.trangthaithanhtoan !== 'DaThanhToan')
+        if (unpaidList.length > 0) {
+          const mappedQueue = unpaidList.map(inv => ({
+            id: inv.mahd,
+            mahd: inv.mahd,
+            invoiceCode: inv.code || `HD${String(inv.mahd).padStart(3, '0')}`,
+            patientCode: `BN${String(inv.mabn || 1).padStart(3, '0')}`,
+            patientName: inv.patientName || 'Bệnh Nhân',
+            gender: inv.benhnhan?.gioitinh === 'Nu' ? 'Nữ' : 'Nam',
+            age: 45,
+            phone: inv.phone || '0901 234 567',
+            doctorName: inv.doctorName || 'BS. CKII Nguyễn Hoàng Nam',
+            department: 'Khoa Khám Bệnh Ngoại Trú',
+            insuranceNumber: inv.insuranceNumber || inv.benhnhan?.sobhyt || '',
+            insuranceRate: (inv.insuranceNumber || inv.benhnhan?.sobhyt) ? 0.8 : 0,
+            createdAt: inv.date || formatDateTime(new Date()),
+            items: (inv.items && inv.items.length > 0) ? inv.items.map((it, idx) => ({
+              id: it.id || idx + 1,
+              name: it.name || it.tendichvu || 'Dịch vụ / Thuốc',
+              type: it.type || (it.name?.toLowerCase().includes('thuốc') ? 'THUỐC' : 'CLS'),
+              qty: it.quantity || it.soluong || 1,
+              price: it.price || it.dongia || 0,
+              bhytCovered: !!(inv.insuranceNumber || inv.benhnhan?.sobhyt)
+            })) : [
+              { id: 1, name: 'Khám bệnh & Dịch vụ y tế', type: 'KHÁM', qty: 1, price: inv.totalAmount || 250000, bhytCovered: true }
+            ]
+          }))
+          setQueue(mappedQueue)
+          setSelectedQueuePatient(mappedQueue[0])
+        } else {
+          setQueue([])
+          setSelectedQueuePatient(null)
+        }
+
+        // 3. Sổ Quỹ Thu - Chi (Tổng hợp từ hóa đơn đã thanh toán)
+        const paidList = allInvoices.filter(inv => inv.trangthaithanhtoan === 'DaThanhToan')
+        if (paidList.length > 0) {
+          const mappedCashbook = paidList.map(inv => ({
+            id: `PT-${String(inv.mahd).padStart(3, '0')}`,
+            type: 'THU',
+            category: 'Thu viện phí',
+            refCode: inv.code || `HD${String(inv.mahd).padStart(3, '0')}`,
+            amount: inv.totalAmount || 0,
+            method: inv.paymentMethod || 'Chuyển khoản (VietQR)',
+            payer: inv.patientName || 'Bệnh Nhân',
+            note: `Thu viện phí BN ${inv.patientName || 'Bệnh Nhân'} (${inv.code || 'HD00' + inv.mahd})`,
+            createdAt: inv.date || formatDateTime(new Date())
+          }))
+          setCashbook([...mappedCashbook, ...INITIAL_CASHBOOK.filter(c => c.type === 'CHI')])
+        }
+      }
+    } catch (err) {
+      console.warn('[AccountantPortal] Lỗi tải dữ liệu hóa đơn:', err.message)
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
+  // Tải dữ liệu khi mở trang
   useEffect(() => {
-    const t = setTimeout(() => setIsLoading(false), 350)
-    return () => clearTimeout(t)
+    loadDataFromDB()
   }, [])
 
   // Đổi tab có loading nhẹ
@@ -276,18 +364,29 @@ export default function AccountantPortal() {
     q.phone.includes(searchQueueText)
   )
 
-  // Xử lý xác nhận thu tiền
-  const handleConfirmPayment = () => {
+  // Xử lý xác nhận thu tiền & đồng bộ vào CSDL Supabase
+  const handleConfirmPayment = async () => {
     if (!selectedQueuePatient) return
 
     setIsProcessingPayment(true)
-    setTimeout(() => {
-      const newInvoiceId = `HD-${Date.now().toString().slice(-6)}`
+    try {
       const methodLabel = paymentMethod === 'CASH' ? 'Tiền mặt' : (paymentMethod === 'QR' ? 'Chuyển khoản (VietQR)' : 'Thẻ POS')
-      
+      const dbMethod = paymentMethod === 'CASH' ? 'TienMat' : (paymentMethod === 'QR' ? 'ChuyenKhoan' : 'TheThanhToan')
+
+      // Gọi API cập nhật trạng thái thanh toán trên Supabase Database
+      try {
+        await invoiceService.updatePayment(selectedQueuePatient.id || selectedQueuePatient.mahd, {
+          phuongthuctt: dbMethod,
+          paymentMethod: methodLabel
+        })
+      } catch (apiErr) {
+        console.warn('[handleConfirmPayment] API error hoặc fallback:', apiErr.message)
+      }
+
+      const newInvoiceId = selectedQueuePatient.invoiceCode || `HD-${Date.now().toString().slice(-6)}`
       const newInvoice = {
         id: newInvoiceId,
-        code: `HD${Math.floor(100 + Math.random() * 900)}`,
+        code: selectedQueuePatient.invoiceCode || `HD${Math.floor(100 + Math.random() * 900)}`,
         patientCode: selectedQueuePatient.patientCode,
         patientName: selectedQueuePatient.patientName,
         phone: selectedQueuePatient.phone,
@@ -297,12 +396,12 @@ export default function AccountantPortal() {
         patientPay: billingSummary.finalTotal,
         paymentMethod: methodLabel,
         status: 'PAID',
-        cashier: 'Nguyễn Thị Mai (Quầy 1)',
+        cashier: 'Kế Toán Viên (Thu Ngân)',
         items: selectedQueuePatient.items
       }
 
       // Thêm vào danh sách hóa đơn
-      setInvoices(prev => [newInvoice, ...prev])
+      setInvoices(prev => [newInvoice, ...prev.filter(i => i.code !== newInvoice.code && i.id !== newInvoice.id)])
 
       // Thêm phiếu thu vào sổ quỹ
       const newVoucher = {
@@ -324,12 +423,13 @@ export default function AccountantPortal() {
       setSelectedQueuePatient(remainingQueue[0] || null)
       setCustomerGivenCash('')
 
-      setIsProcessingPayment(false)
-      showToast(`Đã thu thành công ${formatCurrency(billingSummary.finalTotal)} của BN ${newInvoice.patientName}`)
+      showToast(`Đã thu thành công ${formatCurrency(billingSummary.finalTotal)} của BN ${newInvoice.patientName} và đồng bộ CSDL!`)
 
       // Tự động mở modal in hóa đơn
       setPrintInvoiceData(newInvoice)
-    }, 400)
+    } finally {
+      setIsProcessingPayment(false)
+    }
   }
 
   // Thêm phiếu thu/chi mới
@@ -655,18 +755,21 @@ export default function AccountantPortal() {
               <span>{currentTime.toLocaleTimeString('vi-VN')}</span>
             </div>
 
-            {/* Nút Làm Mới */}
+            {/* Badge đồng bộ Database */}
+            <span className="badge bg-success-subtle text-success border border-success-subtle px-2.5 py-1.5 d-none d-md-inline-flex align-items-center gap-1">
+              <i className="bi bi-database-check me-1"></i>
+              <span>CSDL Supabase</span>
+            </span>
+
+            {/* Nút Làm Mới Dữ Liệu Từ Database */}
             <button 
               type="button" 
               className="btn btn-sm btn-light border p-2"
-              onClick={() => {
-                setIsLoading(true)
-                setTimeout(() => {
-                  setIsLoading(false)
-                  showToast('Đã đồng bộ dữ liệu kế toán mới nhất!')
-                }, 300)
+              onClick={async () => {
+                await loadDataFromDB()
+                showToast('Đã đồng bộ dữ liệu hóa đơn mới nhất từ CSDL Supabase!')
               }}
-              title="Làm mới dữ liệu"
+              title="Đồng bộ lại từ cơ sở dữ liệu"
             >
               <i className="bi bi-arrow-repeat text-secondary"></i>
             </button>

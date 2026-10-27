@@ -125,13 +125,13 @@ export default function DoctorList() {
 
   return (
     <AdminLayout title="Quản Lý Đội Ngũ Bác Sĩ">
-      {/* 1. Header Toolbar Quản Trị & Nút Thêm Bác Sĩ To Hơn */}
+      {/* 1. Header Toolbar Quản Trị & Nút Thêm Bác Sĩ Đồng Bộ Chuẩn Admin */}
       <div className="card border-0 shadow-sm rounded-3 mb-4 bg-white">
         <div className="card-body p-3">
           <div className="d-flex flex-wrap align-items-center justify-content-between gap-3">
             {/* Cụm Tìm kiếm & Lọc chuyên khoa */}
             <div className="d-flex flex-wrap align-items-center gap-2 flex-grow-1" style={{ maxWidth: '650px' }}>
-              <div className="input-group" style={{ minWidth: '220px', flex: 1 }}>
+              <div className="input-group input-group-sm" style={{ minWidth: '220px', flex: 1 }}>
                 <span className="input-group-text bg-white border-end-0">
                   <i className="bi bi-search text-muted"></i>
                 </span>
@@ -145,8 +145,8 @@ export default function DoctorList() {
               </div>
 
               <select 
-                className="form-select" 
-                style={{ width: 'auto', minWidth: '190px' }}
+                className="form-select form-select-sm" 
+                style={{ width: 'auto', minWidth: '180px' }}
                 value={selectedDept} 
                 onChange={(e) => setSelectedDept(e.target.value)}
               >
@@ -157,9 +157,13 @@ export default function DoctorList() {
               </select>
             </div>
 
-            {/* Chế độ xem & NÚT THÊM BÁC SĨ TO HƠN */}
+            {/* Chế độ xem & NÚT THÊM BÁC SĨ ĐỒNG BỘ ĐỘ CAO VÀ CỠ CHỮ */}
             <div className="d-flex align-items-center gap-2 ms-auto">
-              <div className="btn-group" role="group">
+              <span className="text-muted small d-none d-md-inline me-1">
+                Tổng cộng: <strong>{filtered.length}</strong> bác sĩ
+              </span>
+
+              <div className="btn-group btn-group-sm" role="group">
                 <button 
                   type="button" 
                   className={`btn ${viewMode === 'grid' ? 'btn-primary' : 'btn-outline-secondary'}`}
@@ -178,14 +182,13 @@ export default function DoctorList() {
                 </button>
               </div>
 
-              {/* NÚT THÊM BÁC SĨ TO HƠN */}
               <button 
                 type="button" 
-                className="btn btn-primary px-3 py-2 fw-semibold d-inline-flex align-items-center gap-2 shadow-sm"
+                className="btn btn-primary btn-sm px-3 d-flex align-items-center"
                 onClick={handleOpenAdd}
               >
-                <i className="bi bi-person-plus-fill fs-5"></i>
-                <span>+ Thêm Bác Sĩ Mới</span>
+                <i className="bi bi-person-plus-fill me-1"></i>
+                <span>Thêm Bác Sĩ Mới</span>
               </button>
             </div>
           </div>
@@ -411,11 +414,11 @@ export default function DoctorList() {
           <div className="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable" style={{ maxHeight: '90vh' }}>
             <div className="modal-content border-0 shadow-lg rounded-3 overflow-hidden d-flex flex-column" style={{ maxHeight: '90vh' }}>
               
-              {/* NỀN TIÊU ĐỀ MÀU XANH ĐỒNG BỘ */}
+              {/* NỀN TIÊU ĐỀ GRADIENT THƯƠNG HIỆU */}
               <div 
-                className="modal-header py-3 px-4 text-white border-0 flex-shrink-0"
+                className="modal-header py-3 px-4 text-white border-0 flex-shrink-0 no-print"
                 style={{ 
-                  background: 'linear-gradient(135deg, #1e40af 0%, #175cdd 100%)'
+                  background: 'linear-gradient(135deg, #175cdd 0%, #10b981 100%)'
                 }}
               >
                 <div className="d-flex align-items-center gap-3">
@@ -592,13 +595,17 @@ export default function DoctorList() {
 
                 </div>
 
-                <div className="modal-footer p-3 bg-light border-top flex-shrink-0">
+                <div className="modal-footer p-3 bg-light border-top flex-shrink-0 d-flex justify-content-end gap-2">
                   <button type="button" className="btn btn-outline-secondary btn-sm px-3" onClick={() => setModalOpen(false)}>
                     Hủy Bỏ
                   </button>
-                  <button type="submit" className="btn btn-primary btn-sm px-4 d-flex align-items-center">
+                  <button 
+                    type="submit" 
+                    className="btn btn-primary btn-sm px-4 d-flex align-items-center"
+                    style={{ background: 'linear-gradient(135deg, #175cdd 0%, #10b981 100%)', border: 'none' }}
+                  >
                     <i className="bi bi-check2-circle me-1"></i>
-                    {editingDoctor ? 'Cập Nhật Thông Tin' : 'Lưu Bác Sĩ Mới'}
+                    <span>{editingDoctor ? 'Cập Nhật Thông Tin' : 'Lưu Bác Sĩ Mới'}</span>
                   </button>
                 </div>
               </form>

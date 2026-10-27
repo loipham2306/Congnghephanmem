@@ -36,6 +36,17 @@ function normalizePatient(p) {
   }
 }
 
+function normalizeBloodType(val) {
+  if (!val) return 'ChuaRo'
+  const clean = String(val).trim().toUpperCase()
+  if (clean.startsWith('AB')) return 'AB'
+  if (clean.startsWith('A')) return 'A'
+  if (clean.startsWith('B')) return 'B'
+  if (clean.startsWith('O')) return 'O'
+  if (clean === 'CHUARO' || clean === 'CHƯA RÕ' || clean === 'CHUA RO') return 'ChuaRo'
+  return 'ChuaRo'
+}
+
 export const patientService = {
   async getAll(params = {}) {
     try {
@@ -77,17 +88,23 @@ export const patientService = {
     try {
       const payload = {
         hoten: data.fullName || data.hoten,
-        gioitinh: data.gender === 'Nữ' || data.gioitinh === 'Nu' ? 'Nu' : 'Nam',
+        gioitinh: data.gender === 'Nữ' || data.gioitinh === 'Nu' ? 'Nu' : (data.gender === 'Khác' || data.gioitinh === 'Khac' ? 'Khac' : 'Nam'),
         ngaysinh: data.birthday || `${data.birthYear || 1990}-01-01`,
         sdt: data.phone || data.sdt,
-        diachi: data.address || data.diachi,
-        cccd: data.cccd,
-        sobhyt: data.sobhyt
+        diachi: data.address || data.diachi || ''
+      }
+      // Chỉ gửi cccd nếu có giá trị hợp lệ 12 số
+      if (data.cccd && String(data.cccd).trim().length === 12) {
+        payload.cccd = String(data.cccd).trim()
+      }
+      // Chỉ gửi sobhyt nếu có giá trị
+      if (data.sobhyt && String(data.sobhyt).trim().length > 0) {
+        payload.sobhyt = String(data.sobhyt).trim()
       }
       const res = await api.put('/patients/me', payload)
       return normalizePatient(res.data || res)
     } catch (err) {
-      console.error('[patientService] updateMyProfile error:', err.message)
+      console.error('[patientService] updateMyProfile error:', err.response?.data || err.message)
       throw err
     }
   },
@@ -106,16 +123,17 @@ export const patientService = {
   // 4. Cập nhật hồ sơ bệnh án & tiền sử (/api/patients/me/medical-record)
   async updateMyMedicalRecord(data) {
     try {
+      const bloodType = normalizeBloodType(data.bloodGroup || data.nhommau)
       const payload = {
-        nhommau: data.bloodGroup || data.nhommau || 'ChuaRo',
-        tiensubenh: data.chronicDiseases || data.tiensubenh || 'Không',
-        diung: data.allergies || data.diung || 'Không',
+        nhommau: bloodType,
+        tiensubenh: data.chronicDiseases || data.tiensubenh || 'Không có',
+        diung: data.allergies || data.diung || 'Không có',
         ghichu: data.notes || data.ghichu || ''
       }
       const res = await api.put('/patients/me/medical-record', payload)
       return res.data || res
     } catch (err) {
-      console.error('[patientService] updateMyMedicalRecord error:', err.message)
+      console.error('[patientService] updateMyMedicalRecord error:', err.response?.data || err.message)
       throw err
     }
   },

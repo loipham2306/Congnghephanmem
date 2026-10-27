@@ -320,6 +320,17 @@
    CSS CHUYÊN DỤNG IN TOA THUỐC & BỆNH ÁN (@media print)
    Chỉ in đúng mẫu đơn thuốc chuẩn Bộ Y Tế, chống trang trắng
    ======================================================== */
+.prescription-modal-backdrop {
+  background-color: rgba(15, 23, 42, 0.65);
+  backdrop-filter: blur(2px);
+}
+
+.prescription-modal-body-scroll {
+  max-height: 75vh;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
 @media screen {
   .print-only {
     display: none !important;
@@ -384,8 +395,57 @@
   footer,
   .modal-backdrop,
   .modal-header,
-  .modal-footer {
+  .modal-footer,
+  .btn-close {
     display: none !important;
+  }
+
+  /* Reset toàn diện cho modal để in vừa khít trang A4, không backdrop, không scrollbar */
+  .modal,
+  .prescription-modal-backdrop {
+    position: static !important;
+    display: block !important;
+    background: transparent !important;
+    background-color: transparent !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    overflow: visible !important;
+    box-shadow: none !important;
+  }
+
+  .modal-dialog {
+    position: static !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    transform: none !important;
+    box-shadow: none !important;
+  }
+
+  .modal-content {
+    position: static !important;
+    border: none !important;
+    box-shadow: none !important;
+    background: #ffffff !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+
+  .modal-body,
+  .prescription-modal-body-scroll {
+    position: static !important;
+    max-height: none !important;
+    height: auto !important;
+    overflow: visible !important;
+    overflow-y: visible !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    background: #ffffff !important;
   }
 
   /* Hiển thị vùng in chuyên dụng */

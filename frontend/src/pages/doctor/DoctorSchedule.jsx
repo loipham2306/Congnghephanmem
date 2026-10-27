@@ -12,7 +12,7 @@ const WEEK_SCHEDULE = [
 
 export default function DoctorSchedule() {
   return (
-    <DoctorLayout title="Lịch Trực & Ca Làm Việc" subtitle="Lịch phân công trực phòng khám và ca lâm sàng theo tuần">
+    <DoctorLayout title="Lịch Trực & Ca Làm" subtitle="Lịch phân công trực phòng khám và ca lâm sàng theo tuần">
       
       <div className="card border-0 shadow-sm rounded-3 bg-white p-3 mb-3">
         <div className="d-flex flex-wrap align-items-center justify-content-between gap-2">

@@ -4,7 +4,8 @@ import { useAuth } from '../../hooks/useAuth'
 import logo from '../../assets/logo.jpg'
 
 export default function Login() {
-  const [email, setEmail] = useState('admin@phongkham.vn')
+  const [selectedRole, setSelectedRole] = useState('ADMIN')
+  const [email, setEmail] = useState('admin')
   const [password, setPassword] = useState('123456')
   const [showPassword, setShowPassword] = useState(false)
   const [loading, setLoading] = useState(false)
@@ -12,15 +13,38 @@ export default function Login() {
   const { login } = useAuth()
   const navigate = useNavigate()
 
+  const handleSelectRole = (role) => {
+    setSelectedRole(role)
+    setError('')
+    if (role === 'ADMIN') {
+      setEmail('admin')
+      setPassword('123456')
+    } else if (role === 'DOCTOR') {
+      setEmail('bs_hoangnam')
+      setPassword('Password123@')
+    } else if (role === 'ACCOUNTANT') {
+      setEmail('ketoan')
+      setPassword('123456')
+    } else if (role === 'PATIENT') {
+      setEmail('bao01')
+      setPassword('123456')
+    }
+  }
+
   const handleSubmit = async (e) => {
     e.preventDefault()
     setError('')
     setLoading(true)
     try {
       const res = await login(email, password)
-      if (res?.user?.role === 'PATIENT') {
+      const userRole = res?.user?.role
+      const username = (res?.user?.username || email).toLowerCase()
+
+      if (userRole === 'ACCOUNTANT' || username.includes('ketoan') || username.includes('accountant')) {
+        navigate('/accountant')
+      } else if (userRole === 'PATIENT') {
         navigate('/ho-so-ca-nhan')
-      } else if (res?.user?.role === 'DOCTOR') {
+      } else if (userRole === 'DOCTOR') {
         navigate('/doctor/ban-kham')
       } else {
         navigate('/dashboard')
@@ -32,7 +56,8 @@ export default function Login() {
     }
   }
 
-  const handleQuickLogin = (username, pwd = '123456') => {
+  const handleQuickLogin = (username, pwd = '123456', role = 'ADMIN') => {
+    setSelectedRole(role)
     setEmail(username)
     setPassword(pwd)
   }
@@ -58,6 +83,46 @@ export default function Login() {
           <p className="pk-auth-subtitle">Hệ thống Quản lý Y tế & Đặt lịch khám thông minh</p>
         </div>
 
+        {/* Tab chọn vai trò đăng nhập */}
+        <div className="pk-role-tabs" role="tablist" aria-label="Chọn vai trò đăng nhập">
+          <button
+            type="button"
+            className={`pk-role-tab tab-admin ${selectedRole === 'ADMIN' ? 'active' : ''}`}
+            onClick={() => handleSelectRole('ADMIN')}
+            title="Đăng nhập tài khoản Quản trị viên"
+          >
+            <i className="bi bi-shield-lock-fill"></i>
+            <span>Quản trị viên</span>
+          </button>
+          <button
+            type="button"
+            className={`pk-role-tab tab-doctor ${selectedRole === 'DOCTOR' ? 'active' : ''}`}
+            onClick={() => handleSelectRole('DOCTOR')}
+            title="Đăng nhập tài khoản Bác sĩ"
+          >
+            <i className="bi bi-heart-pulse-fill"></i>
+            <span>Bác sĩ</span>
+          </button>
+          <button
+            type="button"
+            className={`pk-role-tab tab-accountant ${selectedRole === 'ACCOUNTANT' ? 'active' : ''}`}
+            onClick={() => handleSelectRole('ACCOUNTANT')}
+            title="Đăng nhập tài khoản Kế toán / Thu ngân"
+          >
+            <i className="bi bi-cash-coin"></i>
+            <span>Kế toán</span>
+          </button>
+          <button
+            type="button"
+            className={`pk-role-tab tab-patient ${selectedRole === 'PATIENT' ? 'active' : ''}`}
+            onClick={() => handleSelectRole('PATIENT')}
+            title="Đăng nhập tài khoản Bệnh nhân"
+          >
+            <i className="bi bi-person-fill"></i>
+            <span>Bệnh nhân</span>
+          </button>
+        </div>
+
         {error && (
           <div className="pk-auth-alert pk-alert-error">
             <i className="bi bi-exclamation-circle-fill"></i>
@@ -76,7 +141,7 @@ export default function Login() {
                 required
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                placeholder="Nhập tên đăng nhập hoặc email (VD: bao01, admin)"
+                placeholder="Nhập tên đăng nhập hoặc email"
                 autoComplete="username"
               />
             </div>
@@ -139,13 +204,32 @@ export default function Login() {
         <div className="pk-quick-demo">
           <span className="pk-quick-label">Tài khoản dùng thử (Bấm để điền):</span>
           <div className="pk-quick-btns">
-            <button type="button" className="pk-quick-btn" onClick={() => handleQuickLogin('admin', '123456')}>
+            <button
+              type="button"
+              className={`pk-quick-btn ${selectedRole === 'ADMIN' ? 'active' : ''}`}
+              onClick={() => handleQuickLogin('admin', '123456', 'ADMIN')}
+            >
               Quản trị viên
             </button>
-            <button type="button" className="pk-quick-btn" onClick={() => handleQuickLogin('bs_hoangnam', 'Password123@')}>
+            <button
+              type="button"
+              className={`pk-quick-btn ${selectedRole === 'DOCTOR' ? 'active' : ''}`}
+              onClick={() => handleQuickLogin('bs_hoangnam', 'Password123@', 'DOCTOR')}
+            >
               Bác sĩ
             </button>
-            <button type="button" className="pk-quick-btn" onClick={() => handleQuickLogin('bao01', '123456')}>
+            <button
+              type="button"
+              className={`pk-quick-btn ${selectedRole === 'ACCOUNTANT' ? 'active' : ''}`}
+              onClick={() => handleQuickLogin('ketoan', '123456', 'ACCOUNTANT')}
+            >
+              Kế toán
+            </button>
+            <button
+              type="button"
+              className={`pk-quick-btn ${selectedRole === 'PATIENT' ? 'active' : ''}`}
+              onClick={() => handleQuickLogin('bao01', '123456', 'PATIENT')}
+            >
               Bệnh nhân
             </button>
           </div>

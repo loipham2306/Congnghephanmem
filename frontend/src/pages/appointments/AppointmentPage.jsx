@@ -206,7 +206,7 @@ export default function Appointment() {
   // State lựa chọn tương tác (Visual Chips & Cards)
   const [selectedService, setSelectedService] = useState('standard')
   const [selectedDept, setSelectedDept] = useState('cardiology')
-  const [selectedDoctor, setSelectedDoctor] = useState(1) // 1 = BS Hùng, 0 = Tự động xếp
+  const [selectedDoctor, setSelectedDoctor] = useState(null) // null = Chưa chọn, 0 = Tự động xếp, ID = Bác sĩ cụ thể
   const [selectedDate, setSelectedDate] = useState(todayStr)
   const [selectedTime, setSelectedTime] = useState('08:15')
 
@@ -233,6 +233,9 @@ export default function Appointment() {
   }, [selectedService])
 
   const currentDoctorObj = useMemo(() => {
+    if (selectedDoctor === null || selectedDoctor === undefined) {
+      return null
+    }
     if (selectedDoctor === 0) {
       return {
         id: 0,
@@ -244,7 +247,7 @@ export default function Appointment() {
         rating: 5.0
       }
     }
-    return doctorList.find(d => d.id === selectedDoctor) || doctorList[0] || DOCTOR_LIST[0]
+    return doctorList.find(d => d.id === selectedDoctor) || null
   }, [selectedDoctor, selectedDept, doctorList])
 
   const handleInputChange = (e) => {
@@ -258,47 +261,49 @@ export default function Appointment() {
       return
     }
 
+    if (selectedDoctor === null || selectedDoctor === undefined) {
+      alert('Vui lòng chọn Bác sĩ trực tiếp thăm khám (hoặc chọn "Để phòng khám tự động sắp xếp") ở Bước 3 trước khi xác nhận đặt lịch!')
+      return
+    }
+
     setLoading(true)
 
     try {
+      const doctorId = currentDoctorObj && currentDoctorObj.id > 0 
+        ? currentDoctorObj.id 
+        : (currentDoctorObj?.mabs || 1)
+
       const payload = {
+        mabs: doctorId,
         name: patientInfo.name,
         phone: patientInfo.phone,
         email: patientInfo.email,
-        doctorName: currentDoctorObj.name,
-        department: currentDoctorObj.deptName,
-        date: `${selectedDate}T${selectedTime}`,
+        doctorName: currentDoctorObj?.name || 'Phòng khám tự động điều phối',
+        department: currentDoctorObj?.deptName || 'Đa Khoa',
+        date: selectedDate,
+        time: selectedTime,
         notes: `[${currentServiceObj.name}] ${patientInfo.note || 'Không có ghi chú'}`
       }
 
       const res = await appointmentService.create(payload)
 
-      // Tạo mã phiếu khám điện tử
-      const randomCode = res.code || `PLB-2026-${Math.floor(1000 + Math.random() * 9000)}`
+      // Tạo mã phiếu khám điện tử từ DB
+      const ticketCode = res.code || `LH${String(res.malh || res.id).padStart(3, '0')}`
       setSuccessTicket({
-        code: randomCode,
+        code: ticketCode,
         patientName: patientInfo.name,
         phone: patientInfo.phone,
         serviceName: currentServiceObj.name,
-        doctorName: currentDoctorObj.name,
-        department: currentDoctorObj.deptName,
+        doctorName: currentDoctorObj?.name || 'Phòng khám tự động điều phối',
+        department: currentDoctorObj?.deptName || 'Đa Khoa',
         date: selectedDate,
         time: selectedTime,
         price: currentServiceObj.price
       })
-    } catch {
-      // Fallback ticket
-      setSuccessTicket({
-        code: `PLB-2026-${Math.floor(1000 + Math.random() * 9000)}`,
-        patientName: patientInfo.name,
-        phone: patientInfo.phone,
-        serviceName: currentServiceObj.name,
-        doctorName: currentDoctorObj.name,
-        department: currentDoctorObj.deptName,
-        date: selectedDate,
-        time: selectedTime,
-        price: currentServiceObj.price
-      })
+    } catch (err) {
+      console.error('Lỗi đặt lịch khám:', err)
+      const errorMsg = err.response?.data?.message || err.message || 'Không thể tạo lịch hẹn. Vui lòng kiểm tra lại khung giờ và thông tin!'
+      alert(`Đặt lịch không thành công: ${errorMsg}`)
     } finally {
       setLoading(false)
     }
@@ -477,11 +482,7 @@ export default function Appointment() {
                         className={`pk-dept-chip ${selectedDept === dept.id ? 'active' : ''}`}
                         onClick={() => {
                           setSelectedDept(dept.id)
-                          // Tự động gán bác sĩ đầu tiên của khoa đó nếu có
-                          const docInDept = DOCTOR_LIST.find(d => d.deptId === dept.id)
-                          if (docInDept) {
-                            setSelectedDoctor(docInDept.id)
-                          }
+                          setSelectedDoctor(null)
                         }}
                       >
                         <i className={`bi ${dept.icon}`}></i>
@@ -762,18 +763,46 @@ export default function Appointment() {
 
                   <div className="pk-pass-body">
                     {/* Bác sĩ phụ trách Box */}
-                    <div className="pk-pass-doctor-box">
-                      <img src={currentDoctorObj.avatar} alt={currentDoctorObj.name} className="pk-pass-doctor-avatar" />
-                      <div style={{ flex: 1, minWidth: 0 }}>
-                        <div style={{ fontSize: '11px', color: '#64748b', fontWeight: 600 }}>BÁC SĨ PHỤ TRÁCH</div>
-                        <div style={{ fontSize: '13.5px', fontWeight: 700, color: '#0f172a', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                          {currentDoctorObj.name}
-                        </div>
-                        <div style={{ fontSize: '12px', color: '#1f60d0', fontWeight: 600 }}>
-                          {currentDoctorObj.deptName}
+                    {currentDoctorObj ? (
+                      <div className="pk-pass-doctor-box">
+                        <img src={currentDoctorObj.avatar} alt={currentDoctorObj.name} className="pk-pass-doctor-avatar" />
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <div style={{ fontSize: '11px', color: '#64748b', fontWeight: 600 }}>BÁC SĨ PHỤ TRÁCH</div>
+                          <div style={{ fontSize: '13.5px', fontWeight: 700, color: '#0f172a', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                            {currentDoctorObj.name}
+                          </div>
+                          <div style={{ fontSize: '12px', color: '#1f60d0', fontWeight: 600 }}>
+                            {currentDoctorObj.deptName}
+                          </div>
                         </div>
                       </div>
-                    </div>
+                    ) : (
+                      <div className="pk-pass-doctor-box" style={{ border: '1.5px dashed #cbd5e1', background: '#f8fafc' }}>
+                        <div style={{ 
+                          width: '44px', 
+                          height: '44px', 
+                          borderRadius: '50%', 
+                          background: '#f1f5f9', 
+                          color: '#94a3b8', 
+                          display: 'flex', 
+                          alignItems: 'center', 
+                          justifyContent: 'center', 
+                          fontSize: '18px',
+                          border: '1px dashed #cbd5e1'
+                        }}>
+                          <i className="bi bi-person"></i>
+                        </div>
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <div style={{ fontSize: '11px', color: '#94a3b8', fontWeight: 600 }}>BÁC SĨ PHỤ TRÁCH</div>
+                          <div style={{ fontSize: '13px', fontWeight: 600, color: '#64748b' }}>
+                            Chưa chọn bác sĩ
+                          </div>
+                          <div style={{ fontSize: '11.5px', color: '#d97706', fontWeight: 500 }}>
+                            (Vui lòng chọn ở mục 3)
+                          </div>
+                        </div>
+                      </div>
+                    )}
 
                     <div className="pk-pass-row">
                       <span className="pk-pass-label">Dịch vụ</span>

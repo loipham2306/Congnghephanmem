@@ -68,10 +68,20 @@ export default function DoctorClinicRoom() {
           })
           const activeApts = todayApts.length > 0 ? todayApts : aptsData
 
+          let hasFoundActive = false
           const mappedQueue = activeApts.map((apt, idx) => {
             const age = apt.benhnhan?.ngaysinh 
               ? (new Date().getFullYear() - new Date(apt.benhnhan.ngaysinh).getFullYear()) 
               : 30
+
+            const isCompleted = apt.trangthai === 'DaKham' || apt.status === 'COMPLETED'
+            let patientStatus = 'WAITING'
+            if (isCompleted) {
+              patientStatus = 'COMPLETED'
+            } else if (!hasFoundActive) {
+              patientStatus = 'IN_PROGRESS'
+              hasFoundActive = true
+            }
 
             return {
               id: apt.id,
@@ -88,17 +98,23 @@ export default function DoctorClinicRoom() {
               allergies: apt.benhnhan?.hosobenhan?.diung || 'Không ghi nhận dị ứng',
               vitalSigns: { bp: '120/80', pulse: 78, temp: 36.8, spo2: 98, weight: 65, height: 168 },
               reason: apt.notes || apt.lydokham || 'Khám sức khỏe định kỳ',
-              status: apt.status === 'COMPLETED' ? 'COMPLETED' : (idx === 0 ? 'IN_PROGRESS' : 'WAITING'),
+              status: patientStatus,
               registeredTime: apt.timeSlot || '08:00',
               diagnosedHistory: apt.benhnhan?.hosobenhan?.tiensubenh || 'Chưa ghi nhận tiền sử bệnh lý'
             }
           })
 
           setQueue(mappedQueue)
-          if (mappedQueue[0]) {
-            setSelectedPatientId(mappedQueue[0].id)
-            setVitalSigns(mappedQueue[0].vitalSigns)
-            setSymptoms(mappedQueue[0].reason)
+
+          // Chọn bệnh nhân đang khám (IN_PROGRESS) hoặc bệnh nhân đầu tiên
+          const activePatient = mappedQueue.find(p => p.status === 'IN_PROGRESS') || 
+                                mappedQueue.find(p => p.status === 'WAITING') || 
+                                mappedQueue[0]
+
+          if (activePatient) {
+            setSelectedPatientId(activePatient.id)
+            setVitalSigns(activePatient.vitalSigns)
+            setSymptoms(activePatient.reason)
           }
         }
       } catch (err) {
@@ -321,8 +337,8 @@ export default function DoctorClinicRoom() {
 
   return (
     <DoctorLayout 
-      title="Bàn Khám Bệnh Trực Tiếp" 
-      subtitle="Phòng Khám Nội 01 (P.102) - Tiếp nhận, chẩn đoán & kê đơn thuốc"
+      title="Bàn Khám Bệnh" 
+      subtitle="Tiếp nhận bệnh nhân, khám lâm sàng & kê đơn điều trị"
       waitingCount={waitingCount}
     >
       {/* Alert Thông Báo */}
@@ -525,24 +541,46 @@ export default function DoctorClinicRoom() {
                   </div>
                 </div>
 
-                <button 
-                  type="button" 
-                  className="btn btn-success d-flex align-items-center px-3 py-2 fw-semibold shadow-sm"
-                  onClick={handleCompleteExamination}
-                  disabled={isSaving}
-                >
-                  {isSaving ? (
-                    <>
-                      <span className="spinner-border spinner-border-sm me-1.5" role="status"></span>
-                      Đang Lưu...
-                    </>
-                  ) : (
-                    <>
-                      <i className="bi bi-check2-circle fs-5 me-1.5"></i>
-                      Hoàn Thành Ca Khám
-                    </>
-                  )}
-                </button>
+                {currentPatient.status === 'COMPLETED' ? (
+                  <div className="d-flex align-items-center gap-2">
+                    <span className="badge bg-success-subtle text-success border border-success px-3 py-2 fs-6 fw-semibold">
+                      <i className="bi bi-check2-all me-1.5"></i> Ca Khám Đã Hoàn Tất
+                    </span>
+                    <button
+                      type="button"
+                      className="btn btn-primary d-flex align-items-center px-3 py-2 fw-semibold shadow-sm"
+                      onClick={() => {
+                        const nextWaiting = queue.find(p => p.status === 'WAITING')
+                        if (nextWaiting) {
+                          handleCallPatient(nextWaiting.id)
+                        } else {
+                          alert('Đã khám hết tất cả bệnh nhân trong danh sách hôm nay!')
+                        }
+                      }}
+                    >
+                      <i className="bi bi-arrow-right-circle me-1.5"></i> Mời Ca Kế Tiếp
+                    </button>
+                  </div>
+                ) : (
+                  <button 
+                    type="button" 
+                    className="btn btn-success d-flex align-items-center px-3 py-2 fw-semibold shadow-sm"
+                    onClick={handleCompleteExamination}
+                    disabled={isSaving}
+                  >
+                    {isSaving ? (
+                      <>
+                        <span className="spinner-border spinner-border-sm me-1.5" role="status"></span>
+                        Đang Lưu...
+                      </>
+                    ) : (
+                      <>
+                        <i className="bi bi-check2-circle fs-5 me-1.5"></i>
+                        Hoàn Thành Ca Khám
+                      </>
+                    )}
+                  </button>
+                )}
               </div>
 
               {/* Hàng Cảnh Báo Dị Ứng Thuốc */}
@@ -627,26 +665,41 @@ export default function DoctorClinicRoom() {
             </div>
             <div className="doc-card-body">
               <div className="row g-3">
-                <div className="col-12 col-md-6">
-                  <label className="form-label fw-semibold small text-secondary">Lý do đến khám & Triệu chứng cơ năng:</label>
+                {/* Kéo dài hết chiều ngang card để không bị trống */}
+                <div className="col-12">
+                  <label className="form-label fw-bold small text-dark d-flex align-items-center mb-1.5">
+                    <i className="bi bi-chat-left-dots-fill text-primary me-2"></i>
+                    Lý do đến khám & Triệu chứng cơ năng:
+                  </label>
                   <textarea 
                     className="form-control" 
                     rows="3"
+                    placeholder="Nhập chi tiết lý do khám, triệu chứng khởi phát, thời gian xuất hiện, tính chất khó chịu, tiền sử đau..."
                     value={symptoms}
                     onChange={(e) => setSymptoms(e.target.value)}
+                    style={{ lineHeight: '1.6' }}
                   ></textarea>
                 </div>
-                <div className="col-12 col-md-6">
-                  <label className="form-label fw-semibold small text-secondary">Khám thực thể & Nghe tim phổi:</label>
+
+                <div className="col-12">
+                  <label className="form-label fw-bold small text-dark d-flex align-items-center mb-1.5">
+                    <i className="bi bi-stethoscope text-success me-2"></i>
+                    Khám thực thể & Dấu hiệu lâm sàng:
+                  </label>
                   <textarea 
                     className="form-control" 
-                    rows="3"
-                    defaultValue="Tim đều, T1 T2 rõ, không âm thổi bệnh lý. Phổi trong, không rale. Bụng mềm, gan lách không to."
+                    rows="2"
+                    placeholder="Mô tả dấu hiệu lâm sàng, nghe tim phổi, khám chuyên khoa..."
+                    defaultValue="Tổng trạng tốt, tiếp xúc tốt. Tim đều, T1 T2 rõ, không âm thổi bệnh lý. Phổi trong, không rale. Bụng mềm, gan lách không to."
+                    style={{ lineHeight: '1.6' }}
                   ></textarea>
                 </div>
 
                 <div className="col-12 col-md-6">
-                  <label className="form-label fw-semibold small text-secondary">Mã bệnh ICD-10:</label>
+                  <label className="form-label fw-bold small text-dark d-flex align-items-center mb-1.5">
+                    <i className="bi bi-bookmark-check-fill text-warning-emphasis me-2"></i>
+                    Mã bệnh ICD-10:
+                  </label>
                   <select 
                     className="form-select fw-semibold" 
                     value={icdCode} 
@@ -658,14 +711,20 @@ export default function DoctorClinicRoom() {
                     <option value="K29 - Viêm dạ dày và tá tràng">K29 - Viêm dạ dày và tá tràng</option>
                     <option value="G44 - Hội chứng đau đầu khác">G44 - Hội chứng đau đầu khác</option>
                     <option value="I20 - Cơn đau thắt ngực">I20 - Cơn đau thắt ngực</option>
+                    <option value="H10 - Viêm kết mạc cấp">H10 - Viêm kết mạc cấp (Mắt)</option>
+                    <option value="H52 - Tật khúc xạ mắt">H52 - Tật khúc xạ mắt (Cận thị / Loạn thị)</option>
                   </select>
                 </div>
 
                 <div className="col-12 col-md-6">
-                  <label className="form-label fw-semibold small text-secondary">Chẩn đoán xác định:</label>
+                  <label className="form-label fw-bold small text-dark d-flex align-items-center mb-1.5">
+                    <i className="bi bi-check2-circle text-primary me-2"></i>
+                    Chẩn đoán xác định:
+                  </label>
                   <input 
                     type="text" 
                     className="form-control fw-semibold text-primary"
+                    placeholder="Ví dụ: Viêm kết mạc cấp tính - Cận thị tiến triển"
                     value={diagnosis}
                     onChange={(e) => setDiagnosis(e.target.value)}
                   />

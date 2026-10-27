@@ -14,24 +14,33 @@ const initialPrescriptions = [
 
 function normalizePrescription(p) {
   if (!p) return null
-  const dateStr = p.ngayke ? (typeof p.ngayke === 'string' ? p.ngayke.split('T')[0] : new Date(p.ngayke).toISOString().split('T')[0]) : (p.date || '2026-10-01')
-  const details = p.chitietdonthuoc || p.medicines || []
+  const dateStr = p.ngayke ? (typeof p.ngayke === 'string' ? p.ngayke.split('T')[0] : new Date(p.ngayke).toISOString().split('T')[0]) : (p.date || new Date().toISOString().split('T')[0])
+  const details = p.items || p.chitietdonthuoc || p.medicines || []
 
   const medicines = details.map((m, idx) => ({
     id: m.mactdt || idx + 1,
     mathuoc: m.mathuoc,
-    name: m.thuoc?.tenthuoc || m.tenthuoc || m.name || 'Thuốc',
-    tenthuoc: m.thuoc?.tenthuoc || m.tenthuoc || m.name || 'Thuốc',
+    name: m.tenthuoc || m.thuoc?.tenthuoc || m.name || 'Thuốc',
+    tenthuoc: m.tenthuoc || m.thuoc?.tenthuoc || m.name || 'Thuốc',
     quantity: m.soluong || m.quantity || 1,
     soluong: m.soluong || m.quantity || 1,
-    unit: m.thuoc?.donvitinh || m.donvitinh || m.unit || 'viên',
-    donvitinh: m.thuoc?.donvitinh || m.donvitinh || m.unit || 'viên',
+    unit: m.donvitinh || m.thuoc?.donvitinh || m.unit || 'Viên',
+    donvitinh: m.donvitinh || m.thuoc?.donvitinh || m.unit || 'Viên',
     price: m.dongia ? Number(m.dongia) : 0,
     dongia: m.dongia ? Number(m.dongia) : 0,
-    usage: m.lieudung || m.usage || '',
-    lieudung: m.lieudung || m.usage || '',
+    subtotal: m.thanhtien ? Number(m.thanhtien) : (Number(m.dongia || 0) * Number(m.soluong || m.quantity || 1)),
+    usage: m.lieudung || m.usage || 'Uống theo chỉ định của bác sĩ',
+    lieudung: m.lieudung || m.usage || 'Uống theo chỉ định của bác sĩ',
     duration: m.thoigiansudung || ''
   }))
+
+  const docName = p.bacsi?.hoten 
+    ? (p.bacsi.hocham ? `${p.bacsi.hocham}. ${p.bacsi.hoten}` : `BS. ${p.bacsi.hoten}`)
+    : (p.doctorName && !p.doctorName.includes('Trần Văn Hùng') ? p.doctorName : 'BS. CKII. Nguyễn Hoàng Nam')
+
+  const patAge = p.benhnhan?.ngaysinh 
+    ? (new Date().getFullYear() - new Date(p.benhnhan.ngaysinh).getFullYear()) 
+    : (p.age || 35)
 
   return {
     id: p.madt || p.id,
@@ -39,14 +48,20 @@ function normalizePrescription(p) {
     malsk: p.malsk,
     code: p.code || `DT${String(p.madt || p.id).padStart(3, '0')}`,
     patientName: p.benhnhan?.hoten || p.patientName || 'Bệnh Nhân',
-    doctorName: p.bacsi?.hoten || p.doctorName || 'BS. CKII. Trần Văn Hùng',
+    age: patAge,
+    gender: p.benhnhan?.gioitinh === 'Nu' ? 'Nữ' : (p.gender || 'Nam'),
+    phone: p.benhnhan?.sdt || p.phone || '',
+    address: p.benhnhan?.diachi || p.address || '',
+    doctorName: docName,
     date: dateStr,
     ngayke: dateStr,
+    diagnosis: p.khambenh?.chandoan || p.diagnosis || 'Khám bệnh theo đơn',
+    symptoms: p.khambenh?.trieuchung || p.symptoms || '',
     totalMedicines: medicines.length,
     medicines,
     notes: p.ghichubacsi || p.notes || '',
     ghichubacsi: p.ghichubacsi || p.notes || '',
-    totalAmount: p.tongtienthuoc || 0
+    totalAmount: Number(p.tongtienthuoc || 0)
   }
 }
 
@@ -54,14 +69,14 @@ export const prescriptionService = {
   async getAll(params = {}) {
     try {
       const res = await api.get('/prescriptions', params)
-      const list = Array.isArray(res) ? res : (res.data || [])
-      if (list.length > 0) {
+      const list = Array.isArray(res) ? res : (Array.isArray(res?.data) ? res.data : [])
+      if (Array.isArray(list) && list.length > 0) {
         return list.map(normalizePrescription)
       }
-      return initialPrescriptions
+      return list.map(normalizePrescription)
     } catch (err) {
       console.warn('[prescriptionService] Gọi /prescriptions lỗi, dùng fallback:', err.message)
-      return initialPrescriptions
+      return initialPrescriptions.map(normalizePrescription)
     }
   },
 

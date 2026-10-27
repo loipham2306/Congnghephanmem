@@ -106,7 +106,134 @@ async function loginService({ username, password }) {
     };
 }
 
+async function getAllUsersService() {
+    const accounts = await prisma.taikhoan.findMany({
+        include: {
+            nhanvien: true,
+            benhnhan: true,
+        },
+        orderBy: { matk: "asc" },
+    });
+
+    return accounts.map((acc) => {
+        const isStaff = !!acc.nhanvien;
+        const isPatient = !!acc.benhnhan;
+        const name = acc.nhanvien?.hoten || acc.benhnhan?.hoten || (acc.tendangnhap === 'admin' ? 'Quản Trị Viên Hệ Thống' : (acc.tendangnhap === 'ketoan' ? 'Kế Toán Viên (Thu Ngân)' : acc.tendangnhap));
+        const phone = acc.nhanvien?.sdt || acc.benhnhan?.sdt || '';
+        const role = acc.vaitro;
+
+        return {
+            id: acc.matk,
+            matk: acc.matk,
+            username: acc.tendangnhap,
+            name,
+            email: `${acc.tendangnhap}@phongkham.vn`,
+            role,
+            status: acc.trangthai === "HoatDong" ? "ACTIVE" : "LOCKED",
+            rawStatus: acc.trangthai,
+            phone,
+            gender: acc.nhanvien?.gioitinh || acc.benhnhan?.gioitinh || 'Nam',
+            createdAt: acc.ngaytao,
+            lastLogin: new Date(acc.ngaytao).toISOString().replace("T", " ").substring(0, 16),
+            isStaff,
+            isPatient
+        };
+    });
+}
+
+async function toggleUserStatusService(userId) {
+    const matk = Number(userId);
+    const user = await prisma.taikhoan.findUnique({ where: { matk } });
+    if (!user) {
+        const error = new Error(`Không tìm thấy tài khoản với ID: ${matk}`);
+        error.statusCode = 404;
+        throw error;
+    }
+
+    const newStatus = user.trangthai === "HoatDong" ? "KhoaTaiKhoan" : "HoatDong";
+    const updated = await prisma.taikhoan.update({
+        where: { matk },
+        data: { trangthai: newStatus },
+    });
+
+    return {
+        matk: updated.matk,
+        tendangnhap: updated.tendangnhap,
+        trangthai: updated.trangthai,
+        status: updated.trangthai === "HoatDong" ? "ACTIVE" : "LOCKED",
+    };
+}
+
+async function createUserService({ username, password, hoten, vaitro, sdt, gioitinh }) {
+    const normalizedUsername = (username || '').trim();
+    if (!normalizedUsername) {
+        const error = new Error("Tên đăng nhập không được để trống!");
+        error.statusCode = 400;
+        throw error;
+    }
+
+    const existing = await prisma.taikhoan.findUnique({
+        where: { tendangnhap: normalizedUsername }
+    });
+    if (existing) {
+        const error = new Error("Tên tài khoản đã tồn tại trong hệ thống!");
+        error.statusCode = 409;
+        throw error;
+    }
+
+    const hashedPassword = await hashPassword(password || "123456");
+    const validRole = ["Admin", "BacSi", "YTa", "LeTan", "BenhNhan"].includes(vaitro) ? vaitro : "Admin";
+
+    const account = await prisma.$transaction(async (tx) => {
+        const acc = await tx.taikhoan.create({
+            data: {
+                tendangnhap: normalizedUsername,
+                matkhau: hashedPassword,
+                vaitro: validRole,
+                trangthai: "HoatDong"
+            }
+        });
+
+        if (validRole === "BenhNhan") {
+            await tx.benhnhan.create({
+                data: {
+                    matk: acc.matk,
+                    hoten: hoten || normalizedUsername,
+                    gioitinh: gioitinh === "Nu" ? "Nu" : "Nam",
+                    ngaysinh: new Date("2000-01-01"),
+                    sdt: sdt || "0900000000"
+                }
+            });
+        } else {
+            await tx.nhanvien.create({
+                data: {
+                    matk: acc.matk,
+                    hoten: hoten || normalizedUsername,
+                    gioitinh: gioitinh === "Nu" ? "Nu" : "Nam",
+                    ngaysinh: new Date("1990-01-01"),
+                    sdt: sdt || "0900000000",
+                    chucvu: ["BacSi", "YTa", "LeTan"].includes(validRole) ? validRole : "QuanLy",
+                    ngayvaolam: new Date()
+                }
+            });
+        }
+
+        return acc;
+    });
+
+    return {
+        matk: account.matk,
+        tendangnhap: account.tendangnhap,
+        vaitro: account.vaitro,
+        hoten: hoten || normalizedUsername,
+        trangthai: account.trangthai
+    };
+}
+
 module.exports = {
     registerService,
     loginService,
+    getAllUsersService,
+    toggleUserStatusService,
+    createUserService,
 };

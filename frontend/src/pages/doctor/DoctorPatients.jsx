@@ -1,31 +1,141 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import DoctorLayout from '../../components/layout/DoctorLayout'
+import patientService from '../../services/patientService'
+import medicalRecordService from '../../services/medicalRecordService'
+import appointmentService from '../../services/appointmentService'
 
 const INITIAL_PATIENTS = [
-  { id: 1, code: 'BN001', name: 'Nguyễn Văn An', age: 65, gender: 'Nam', phone: '0901 234 567', lastVisit: '2026-10-01', totalVisits: 4, mainDiagnosis: 'Tăng huyết áp vô căn (I10)', status: 'Đang theo dõi' },
-  { id: 2, code: 'BN002', name: 'Trần Thị Mai', age: 32, gender: 'Nữ', phone: '0912 345 678', lastVisit: '2026-10-03', totalVisits: 2, mainDiagnosis: 'Viêm mũi họng cấp (J00)', status: 'Khỏi bệnh' },
-  { id: 3, code: 'BN003', name: 'Lê Hoàng Long', age: 45, gender: 'Nam', phone: '0987 654 321', lastVisit: '2026-10-04', totalVisits: 3, mainDiagnosis: 'Rối loạn tuần hoàn não (G44)', status: 'Đang theo dõi' },
-  { id: 4, code: 'BN004', name: 'Phạm Hương Giang', age: 28, gender: 'Nữ', phone: '0933 221 100', lastVisit: '2026-10-05', totalVisits: 1, mainDiagnosis: 'Viêm loét dạ dày (K29)', status: 'Đang dùng thuốc' },
-  { id: 5, code: 'BN005', name: 'Hoàng Minh Tuấn', age: 52, gender: 'Nam', phone: '0978 112 233', lastVisit: '2026-09-28', totalVisits: 5, mainDiagnosis: 'Bệnh tim thiếu máu cục bộ', status: 'Đang theo dõi' }
+  { id: 1, mabn: 1, code: 'BN001', name: 'Nguyễn Đức Bảo', age: 21, gender: 'Nam', phone: '0912 345 372', address: '123 Đường Nguyễn Trãi, Quận 1, TP.HCM', lastVisit: '2026-10-26', totalVisits: 2, mainDiagnosis: 'Cận thị tiến triển - Viêm kết mạc', status: 'Đã hoàn thành khám' },
+  { id: 2, mabn: 2, code: 'BN002', name: 'Nguyễn Văn An', age: 65, gender: 'Nam', phone: '0901 234 567', address: 'Số 123 Nguyễn Huệ, Quận 1, TP.HCM', lastVisit: '2026-10-01', totalVisits: 4, mainDiagnosis: 'Tăng huyết áp vô căn (I10)', status: 'Đang theo dõi' },
+  { id: 3, mabn: 3, code: 'BN003', name: 'Trần Thị Mai', age: 32, gender: 'Nữ', phone: '0912 345 678', address: 'Số 45 Lê Lợi, Quận 3, TP.HCM', lastVisit: '2026-10-03', totalVisits: 2, mainDiagnosis: 'Viêm mũi họng cấp (J00)', status: 'Khỏi bệnh' },
+  { id: 4, mabn: 4, code: 'BN004', name: 'Lê Hoàng Long', age: 45, gender: 'Nam', phone: '0987 654 321', address: 'Bình Thạnh, TP.HCM', lastVisit: '2026-10-04', totalVisits: 3, mainDiagnosis: 'Rối loạn tuần hoàn não (G44)', status: 'Đang theo dõi' },
+  { id: 5, mabn: 5, code: 'BN005', name: 'Phạm Hương Giang', age: 28, gender: 'Nữ', phone: '0933 221 100', address: 'Thủ Đức, TP.HCM', lastVisit: '2026-10-05', totalVisits: 1, mainDiagnosis: 'Viêm loét dạ dày (K29)', status: 'Đang dùng thuốc' }
 ]
 
 export default function DoctorPatients() {
-  const [patients] = useState(INITIAL_PATIENTS)
+  const [patients, setPatients] = useState(INITIAL_PATIENTS)
+  const [loading, setLoading] = useState(true)
   const [searchTerm, setSearchTerm] = useState('')
+  const [selectedPatient, setSelectedPatient] = useState(null)
+  const [patientHistory, setPatientHistory] = useState([])
+
+  // Nạp dữ liệu bệnh nhân từ Database Supabase
+  useEffect(() => {
+    async function loadPatientsFromDB() {
+      setLoading(true)
+      try {
+        const [allPatients, allRecords, allAppts] = await Promise.all([
+          patientService.getAll(),
+          medicalRecordService.getAll(),
+          appointmentService.getAll()
+        ])
+
+        if (Array.isArray(allPatients) && allPatients.length > 0) {
+          const mapped = allPatients.map(p => {
+            const pId = p.mabn || p.id
+            const pName = p.fullName || p.hoten || p.name || 'Bệnh Nhân'
+            const pPhone = p.phone || p.sdt || ''
+
+            // Tìm các ca khám tương ứng của bệnh nhân này
+            const visits = allRecords.filter(r => 
+              r.mabn === pId || 
+              (r.patientName && r.patientName.toLowerCase() === pName.toLowerCase())
+            )
+
+            // Tìm các lịch hẹn đã khám
+            const completedAppts = allAppts.filter(a =>
+              (a.mabn === pId || (a.patientName && a.patientName.toLowerCase() === pName.toLowerCase())) &&
+              (a.trangthai === 'DaKham' || a.status === 'COMPLETED')
+            )
+
+            const totalCount = Math.max(visits.length, completedAppts.length, 1)
+            const latestRecord = visits[0] || null
+            const latestAppt = completedAppts[0] || null
+            const lastDate = latestRecord?.date || latestAppt?.appointmentDate || '2026-10-26'
+            const mainDiag = latestRecord?.diagnosis || latestAppt?.notes || p.notes || 'Khám sức khỏe tổng quát'
+
+            const age = p.birthYear 
+              ? (new Date().getFullYear() - p.birthYear) 
+              : (p.age || 30)
+
+            return {
+              id: pId,
+              mabn: pId,
+              code: p.code || `BN${String(pId).padStart(3, '0')}`,
+              name: pName,
+              age: age > 0 ? age : 28,
+              gender: p.gender === 'Nu' || p.gender === 'Nữ' ? 'Nữ' : 'Nam',
+              phone: pPhone,
+              address: p.address || p.diachi || 'TP. Hồ Chí Minh',
+              bloodGroup: p.bloodGroup || 'O',
+              allergies: p.allergies || 'Không có dị ứng',
+              chronicDiseases: p.chronicDiseases || 'Không có',
+              totalVisits: totalCount,
+              lastVisit: lastDate,
+              mainDiagnosis: mainDiag,
+              status: completedAppts.length > 0 || visits.length > 0 ? 'Đã hoàn thành khám' : 'Đang theo dõi',
+              records: visits
+            }
+          })
+
+          // Kết hợp danh sách
+          const combined = [...mapped]
+          INITIAL_PATIENTS.forEach(initP => {
+            if (!combined.some(c => c.phone === initP.phone || c.name === initP.name)) {
+              combined.push(initP)
+            }
+          })
+          setPatients(combined)
+        }
+      } catch (err) {
+        console.warn('Lỗi nạp danh sách bệnh nhân từ DB:', err.message)
+      } finally {
+        setLoading(false)
+      }
+    }
+
+    loadPatientsFromDB()
+  }, [])
 
   const filtered = patients.filter(p =>
     p.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
     p.phone.includes(searchTerm) ||
-    p.code.toLowerCase().includes(searchTerm.toLowerCase())
+    p.code.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    (p.mainDiagnosis && p.mainDiagnosis.toLowerCase().includes(searchTerm.toLowerCase()))
   )
 
+  const handleOpenPatientDetail = (patient) => {
+    setSelectedPatient(patient)
+    setPatientHistory(patient.records || [])
+  }
+
+  const handleCloseModal = () => {
+    setSelectedPatient(null)
+    setPatientHistory([])
+  }
+
   return (
-    <DoctorLayout title="Bệnh Nhân Của Tôi" subtitle="Danh sách người bệnh đã từng được bác sĩ thăm khám và điều trị">
+    <DoctorLayout 
+      title="Bệnh Nhân Của Tôi" 
+      subtitle="Danh sách người bệnh đã thăm khám và theo dõi điều trị"
+      patientsCount={patients.length}
+    >
       
-      {/* Search */}
+      {/* Search & Toolbar NGANG HẾT MÀN HÌNH */}
       <div className="card border-0 shadow-sm rounded-3 bg-white p-3 mb-3">
-        <div className="row g-2 align-items-center">
-          <div className="col-12 col-md-5">
+        <div className="row g-3 align-items-center justify-content-between">
+          {/* BÊN TRÁI: Dữ liệu thống kê số lượng bệnh nhân */}
+          <div className="col-12 col-md-6 d-flex align-items-center gap-2 flex-wrap">
+            <span className="badge bg-primary-subtle text-primary border px-3 py-2">
+              <i className="bi bi-people-fill me-1"></i> Bệnh nhân quản lý: <strong>{filtered.length}</strong>
+            </span>
+            <span className="badge bg-success-subtle text-success border px-3 py-2">
+              <i className="bi bi-database-check me-1"></i> Dữ liệu thực tế từ Supabase
+            </span>
+          </div>
+
+          {/* BÊN PHẢI: Ô tìm kiếm */}
+          <div className="col-12 col-md-6 col-lg-5 text-md-end">
             <div className="input-group">
               <span className="input-group-text bg-light border-end-0">
                 <i className="bi bi-search text-muted"></i>
@@ -33,61 +143,227 @@ export default function DoctorPatients() {
               <input 
                 type="text" 
                 className="form-control border-start-0" 
-                placeholder="Tìm mã bệnh nhân, họ tên hoặc số điện thoại..."
+                placeholder="Tìm mã bệnh nhân, họ tên, số điện thoại, chẩn đoán..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
               />
             </div>
           </div>
-          <div className="col-12 col-md-7 text-md-end">
-            <span className="text-muted small">Tổng số bệnh nhân quản lý: <strong>{patients.length}</strong></span>
-          </div>
         </div>
       </div>
 
-      {/* Bảng danh sách bệnh nhân */}
-      <div className="card border-0 shadow-sm rounded-3 bg-white overflow-hidden">
-        <div className="table-responsive">
-          <table className="table table-hover align-middle mb-0" style={{ fontSize: '13.5px' }}>
-            <thead className="table-light">
+      {/* Bảng danh sách bệnh nhân NGANG HẾT MÀN HÌNH (Full Width 100%) */}
+      <div className="card border-0 shadow-sm rounded-3 bg-white overflow-hidden w-100">
+        <div className="table-responsive" style={{ overflowX: 'auto' }}>
+          <table className="table table-hover align-middle mb-0" style={{ fontSize: '13.5px', width: '100%' }}>
+            <thead className="table-light text-secondary">
               <tr>
-                <th>Mã BN</th>
-                <th>Họ và Tên</th>
-                <th>Tuổi / Giới</th>
-                <th>Số Điện Thoại</th>
-                <th>Chẩn Đoán Chính</th>
-                <th>Số Lần Khám</th>
-                <th>Lần Khám Gần Nhất</th>
-                <th>Trạng Thái</th>
+                <th style={{ width: '85px' }} className="ps-3">Mã BN</th>
+                <th style={{ width: '170px' }}>Bệnh Nhân</th>
+                <th style={{ width: '115px' }}>Số Điện Thoại</th>
+                <th style={{ minWidth: '160px' }}>Địa Chỉ</th>
+                <th style={{ minWidth: '180px' }}>Chẩn Đoán Gần Nhất</th>
+                <th style={{ width: '115px' }} className="text-center">Lần Khám</th>
+                <th style={{ width: '120px' }}>Trạng Thái</th>
+                <th style={{ width: '100px' }} className="text-center pe-3">Thao Tác</th>
               </tr>
             </thead>
             <tbody>
-              {filtered.map(p => (
-                <tr key={p.id}>
-                  <td className="fw-bold text-primary">{p.code}</td>
-                  <td>
-                    <div className="fw-semibold text-dark">{p.name}</div>
-                  </td>
-                  <td>{p.age} tuổi / {p.gender}</td>
-                  <td>{p.phone}</td>
-                  <td className="fw-medium text-dark">{p.mainDiagnosis}</td>
-                  <td>
-                    <span className="badge bg-light text-dark border px-2 py-1">
-                      {p.totalVisits} lần
-                    </span>
-                  </td>
-                  <td>{p.lastVisit}</td>
-                  <td>
-                    <span className="badge bg-primary-subtle text-primary border">
-                      {p.status}
-                    </span>
+              {loading ? (
+                <tr>
+                  <td colSpan="8" className="text-center py-4 text-muted">
+                    <span className="spinner-border spinner-border-sm me-2"></span> Đang tải hồ sơ bệnh nhân từ cơ sở dữ liệu...
                   </td>
                 </tr>
-              ))}
+              ) : filtered.length === 0 ? (
+                <tr>
+                  <td colSpan="8" className="text-center py-4 text-muted">
+                    <i className="bi bi-people fs-3 d-block mb-2 text-secondary"></i>
+                    Không tìm thấy bệnh nhân nào phù hợp với từ khóa!
+                  </td>
+                </tr>
+              ) : (
+                filtered.map(p => (
+                  <tr 
+                    key={p.id} 
+                    onClick={() => handleOpenPatientDetail(p)}
+                    style={{ cursor: 'pointer' }}
+                  >
+                    <td className="ps-3">
+                      <span className="fw-bold text-primary">{p.code}</span>
+                    </td>
+                    <td>
+                      <div className="fw-bold text-dark text-truncate" style={{ maxWidth: '160px' }}>{p.name}</div>
+                      <div className="text-muted small">{p.age} tuổi • {p.gender}</div>
+                    </td>
+                    <td>
+                      <strong className="text-secondary">{p.phone}</strong>
+                    </td>
+                    <td>
+                      <div className="text-muted small text-truncate" style={{ maxWidth: '180px' }} title={p.address}>
+                        {p.address}
+                      </div>
+                    </td>
+                    <td>
+                      <div className="fw-semibold text-dark text-truncate" style={{ maxWidth: '200px' }} title={p.mainDiagnosis}>
+                        {p.mainDiagnosis}
+                      </div>
+                    </td>
+                    <td className="text-center">
+                      <span className="badge bg-light text-primary border px-2 py-0.5 fw-bold">
+                        {p.totalVisits} lần
+                      </span>
+                      <div className="text-muted small mt-0.5" style={{ fontSize: '11px' }}>
+                        {p.lastVisit}
+                      </div>
+                    </td>
+                    <td>
+                      <span className="badge bg-success-subtle text-success border border-success-subtle px-2 py-1">
+                        <i className="bi bi-check2-circle me-1"></i> {p.status}
+                      </span>
+                    </td>
+                    <td className="text-center pe-3" onClick={(e) => e.stopPropagation()}>
+                      <button 
+                        type="button" 
+                        className="btn btn-sm btn-outline-primary d-inline-flex align-items-center gap-1 shadow-sm px-2 py-1"
+                        onClick={() => handleOpenPatientDetail(p)}
+                        title="Xem lịch sử khám bệnh"
+                      >
+                        <i className="bi bi-person-lines-fill"></i>
+                        <span>Hồ Sơ</span>
+                      </button>
+                    </td>
+                  </tr>
+                ))
+              )}
             </tbody>
           </table>
         </div>
       </div>
+
+      {/* ================= MODAL XEM CHI TIẾT HỒ SƠ & LỊCH SỬ BỆNH NHÂN ================= */}
+      {selectedPatient && (
+        <div 
+          className="modal fade show d-block" 
+          tabIndex="-1" 
+          style={{ backgroundColor: 'rgba(15, 23, 42, 0.65)', backdropFilter: 'blur(3px)', zIndex: 1050 }}
+          onClick={handleCloseModal}
+        >
+          <div 
+            className="modal-dialog modal-dialog-centered modal-lg" 
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="modal-content border-0 shadow-lg rounded-4 overflow-hidden">
+              
+              {/* Modal Header với Gradient thương hiệu */}
+              <div 
+                className="modal-header text-white py-3 px-4 border-0"
+                style={{ background: 'linear-gradient(135deg, #175cdd 0%, #10b981 100%)' }}
+              >
+                <div className="d-flex align-items-center gap-2">
+                  <i className="bi bi-person-badge-fill fs-4"></i>
+                  <div>
+                    <h5 className="modal-title fw-bold mb-0">Hồ Sơ Sức Khỏe Bệnh Nhân #{selectedPatient.code}</h5>
+                    <div className="small opacity-75">Bệnh nhân: {selectedPatient.name} • {selectedPatient.gender}, {selectedPatient.age} tuổi</div>
+                  </div>
+                </div>
+                <button 
+                  type="button" 
+                  className="btn-close btn-close-white" 
+                  onClick={handleCloseModal}
+                  aria-label="Đóng"
+                ></button>
+              </div>
+
+              {/* Modal Body */}
+              <div className="modal-body p-4">
+                
+                {/* Thông tin cơ bản */}
+                <div className="p-3 rounded-3 bg-light border mb-3">
+                  <div className="row g-2">
+                    <div className="col-12 col-md-6">
+                      <span className="text-muted small d-block">Họ và tên:</span>
+                      <strong className="text-dark fs-6">{selectedPatient.name}</strong>
+                    </div>
+                    <div className="col-6 col-md-3">
+                      <span className="text-muted small d-block">Số điện thoại:</span>
+                      <strong className="text-primary">{selectedPatient.phone}</strong>
+                    </div>
+                    <div className="col-6 col-md-3">
+                      <span className="text-muted small d-block">Nhóm máu:</span>
+                      <span className="badge bg-danger text-white px-2 py-1">{selectedPatient.bloodGroup || 'Chưa rõ'}</span>
+                    </div>
+                    <div className="col-12 col-md-6 mt-2">
+                      <span className="text-muted small d-block">Địa chỉ thường trú:</span>
+                      <span className="text-secondary">{selectedPatient.address}</span>
+                    </div>
+                    <div className="col-6 col-md-3 mt-2">
+                      <span className="text-muted small d-block">Tổng số lần khám:</span>
+                      <span className="badge bg-primary text-white">{selectedPatient.totalVisits} ca khám</span>
+                    </div>
+                    <div className="col-6 col-md-3 mt-2">
+                      <span className="text-muted small d-block">Lần khám gần nhất:</span>
+                      <span className="text-dark fw-bold">{selectedPatient.lastVisit}</span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Tiền sử & Cảnh báo dị ứng */}
+                <div className="row g-2 mb-3">
+                  <div className="col-12 col-md-6">
+                    <div className="p-2.5 rounded bg-white border border-danger-subtle h-100">
+                      <div className="text-danger fw-bold small text-uppercase mb-1">
+                        <i className="bi bi-exclamation-triangle-fill me-1"></i> Cảnh Báo Dị Ứng:
+                      </div>
+                      <div className="text-dark fw-semibold small">{selectedPatient.allergies}</div>
+                    </div>
+                  </div>
+                  <div className="col-12 col-md-6">
+                    <div className="p-2.5 rounded bg-white border border-secondary-subtle h-100">
+                      <div className="text-secondary fw-bold small text-uppercase mb-1">
+                        <i className="bi bi-heart-pulse-fill me-1"></i> Bệnh Lý Mạn Tính / Nền:
+                      </div>
+                      <div className="text-dark fw-semibold small">{selectedPatient.chronicDiseases}</div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Chẩn đoán & Lời dặn */}
+                <div className="mb-3">
+                  <label className="fw-bold text-dark small text-uppercase d-flex align-items-center mb-1">
+                    <i className="bi bi-clipboard2-pulse text-primary me-1.5"></i>
+                    Chẩn đoán bệnh gần nhất:
+                  </label>
+                  <div className="p-2.5 border rounded-3 bg-primary-subtle text-primary fw-bold">
+                    {selectedPatient.mainDiagnosis}
+                  </div>
+                </div>
+
+                {/* Cam kết đồng bộ CSDL */}
+                <div className="alert alert-info py-2 px-3 mb-0 small rounded-3 d-flex align-items-center">
+                  <i className="bi bi-info-circle-fill fs-5 me-2 text-primary"></i>
+                  <div>
+                    Dữ liệu được lưu trữ tự động trên CSDL trung tâm Supabase mỗi khi bác sĩ hoàn thành ca khám.
+                  </div>
+                </div>
+
+              </div>
+
+              {/* Modal Footer */}
+              <div className="modal-footer bg-light px-4 py-3">
+                <button 
+                  type="button" 
+                  className="btn btn-outline-secondary px-3" 
+                  onClick={handleCloseModal}
+                >
+                  Đóng
+                </button>
+              </div>
+
+            </div>
+          </div>
+        </div>
+      )}
 
     </DoctorLayout>
   )

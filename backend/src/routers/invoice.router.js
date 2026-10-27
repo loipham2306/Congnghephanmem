@@ -80,9 +80,17 @@ router.delete(
     removeInvoiceItemController,
 );
 
-// 7. Xác nhận thanh toán viện phí
+// 7. Xác nhận thanh toán viện phí (hỗ trợ cả /pay và /payment)
 router.put(
     "/:id/pay",
+    authMiddleware,
+    roleMiddleware("Admin", "LeTan"),
+    validateInvoiceId,
+    validateInvoicePayment,
+    payInvoiceController,
+);
+router.put(
+    "/:id/payment",
     authMiddleware,
     roleMiddleware("Admin", "LeTan"),
     validateInvoiceId,

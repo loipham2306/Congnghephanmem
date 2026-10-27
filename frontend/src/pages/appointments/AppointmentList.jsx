@@ -19,11 +19,11 @@ export default function AppointmentList() {
 
   return (
     <AdminLayout title="Quản Lý Lịch Hẹn Khám Bệnh">
-      <div className="card border-0 shadow-sm rounded-4 mb-4">
-        <div className="card-body p-4">
+      <div className="card border-0 shadow-sm rounded-3 mb-4 bg-white">
+        <div className="card-body p-3">
           <div className="row g-3 align-items-center">
             <div className="col-md-6">
-              <div className="input-group">
+              <div className="input-group input-group-sm">
                 <span className="input-group-text bg-white border-end-0">
                   <i className="bi bi-search text-muted"></i>
                 </span>
@@ -52,7 +52,7 @@ export default function AppointmentList() {
         </div>
       </div>
 
-      <div className="card border-0 shadow-sm rounded-4">
+      <div className="card border-0 shadow-sm rounded-3 bg-white overflow-hidden">
         <div className="card-body p-0">
           {loading ? (
             <LoadingSpinner text="Đang tải danh sách lịch hẹn..." />

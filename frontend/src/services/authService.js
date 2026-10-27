@@ -3,13 +3,15 @@ import api from './api'
 const STORAGE_KEY = 'clinic_user'
 const TOKEN_KEY = 'clinic_token'
 
-function mapRole(vaitro) {
+function mapRole(vaitro, username = '') {
+  const u = String(username).toLowerCase()
+  if (u.includes('ketoan') || u.includes('accountant') || u.includes('thungan')) return 'ACCOUNTANT'
   if (!vaitro) return 'PATIENT'
   const v = String(vaitro).toLowerCase()
   if (v.includes('admin') || v.includes('quanly')) return 'ADMIN'
   if (v.includes('bacsi') || v.includes('doctor')) return 'DOCTOR'
   if (v.includes('ketoan') || v.includes('accountant')) return 'ACCOUNTANT'
-  if (v.includes('letan') || v.includes('reception')) return 'RECEPTIONIST'
+  if (v.includes('letan') || v.includes('reception')) return 'ACCOUNTANT'
   return 'PATIENT'
 }
 
@@ -44,7 +46,7 @@ export const authService = {
         username: rawUser.tendangnhap || username,
         fullName: rawUser.hoten || rawUser.tendangnhap || username,
         email: rawUser.email || (rawInput.includes('@') ? rawInput : `${username}@phongkham.vn`),
-        role: mapRole(rawUser.vaitro),
+        role: mapRole(rawUser.vaitro, rawUser.tendangnhap || username),
         rawRole: rawUser.vaitro,
         status: rawUser.trangthai || 'HoatDong'
       }

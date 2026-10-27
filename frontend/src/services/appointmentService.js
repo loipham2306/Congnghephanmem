@@ -63,7 +63,9 @@ function normalizeAppointment(a) {
     timeSlot,
     status: a.status || mapStatusToFrontend(a.trangthai),
     trangthai: a.trangthai || mapStatusToBackend(a.status),
-    notes: a.lydokham || a.notes || ''
+    notes: a.lydokham || a.notes || '',
+    benhnhan: a.benhnhan || null,
+    bacsi: a.bacsi || null
   }
 }
 
@@ -99,29 +101,37 @@ export const appointmentService = {
 
   async create(data) {
     try {
+      let appointmentDate = '2026-10-26'
+      if (data.date) {
+        appointmentDate = data.date.includes('T') ? data.date.split('T')[0] : data.date
+      } else if (data.appointmentDate) {
+        appointmentDate = data.appointmentDate
+      }
+
+      let timeSlot = '08:30'
+      if (data.time) {
+        timeSlot = data.time
+      } else if (data.timeSlot) {
+        timeSlot = data.timeSlot
+      } else if (data.date && data.date.includes('T')) {
+        timeSlot = data.date.split('T')[1].substring(0, 5)
+      }
+
       const payload = {
         mabs: Number(data.mabs || data.doctorId) || 1,
         mabn: data.mabn ? Number(data.mabn) : undefined,
-        ngayhen: data.date ? (data.date.includes('T') ? data.date.split('T')[0] : data.date) : (data.appointmentDate || '2026-10-06'),
-        giohen: data.time || data.timeSlot || '09:00',
-        lydokham: data.message || data.notes || data.reason || 'Khám tổng quát'
+        ngayhen: appointmentDate,
+        giohen: timeSlot,
+        lydokham: data.message || data.notes || data.reason || 'Khám sức khỏe tổng quát',
+        phone: data.phone || data.sdt,
+        name: data.name || data.patientName || data.hoten
       }
+
       const res = await api.post('/appointments', payload)
       return normalizeAppointment(res.data || res)
-    } catch {
-      const newAppt = normalizeAppointment({
-        id: Date.now(),
-        code: `LH${Math.floor(100 + Math.random() * 900)}`,
-        patientName: data.name || data.patientName,
-        phone: data.phone,
-        doctorName: data.doctorName || 'BS. CKII. Trần Văn Hùng',
-        department: data.department || 'Đa Khoa',
-        appointmentDate: data.date ? data.date.split('T')[0] : '2026-10-06',
-        timeSlot: data.time || data.timeSlot || '09:00',
-        status: 'PENDING',
-        notes: data.message || data.notes || ''
-      })
-      return newAppt
+    } catch (err) {
+      console.error('[appointmentService] create appointment error:', err.response?.data || err.message)
+      throw err
     }
   },
 
@@ -130,8 +140,9 @@ export const appointmentService = {
       const backendStatus = mapStatusToBackend(status)
       const res = await api.put(`/appointments/${id}/status`, { trangthai: backendStatus })
       return normalizeAppointment(res.data || res)
-    } catch {
-      return { id, status }
+    } catch (err) {
+      console.error('[appointmentService] updateStatus error:', err.response?.data || err.message)
+      throw err
     }
   },
 

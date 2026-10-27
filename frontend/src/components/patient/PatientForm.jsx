@@ -60,9 +60,20 @@ export default function PatientForm({ initialData, onSubmit, onCancel }) {
   }
 
   return (
-    <form onSubmit={handleSubmit} className="patient-admin-form">
-      {/* KHỐI 1: THÔNG TIN ĐỊNH DANH & HÀNH CHÍNH */}
-      <div className="mb-4">
+    <form onSubmit={handleSubmit} className="d-flex flex-column flex-grow-1 m-0 patient-admin-form" style={{ minHeight: 0, overflow: 'hidden' }}>
+      {/* KHUNG CUỘN NỘI DUNG FORM - GHIM TIÊU ĐỀ VÀ NÚT BẤM */}
+      <div 
+        className="modal-body p-4 bg-white" 
+        style={{ 
+          overflowY: 'auto', 
+          maxHeight: 'calc(90vh - 135px)',
+          flex: '1 1 auto',
+          overscrollBehavior: 'contain',
+          fontSize: '13.5px'
+        }}
+      >
+        {/* KHỐI 1: THÔNG TIN ĐỊNH DANH & HÀNH CHÍNH */}
+        <div className="mb-4">
         <div className="d-flex align-items-center gap-2 mb-3 pb-2 border-bottom">
           <div className="rounded-circle bg-primary-subtle text-primary p-2 d-flex align-items-center justify-content-center" style={{ width: '28px', height: '28px' }}>
             <i className="bi bi-person-vcard fs-6"></i>
@@ -320,17 +331,22 @@ export default function PatientForm({ initialData, onSubmit, onCancel }) {
           </div>
         </div>
       </div>
+      </div>
 
-      {/* FOOTER NÚT BẤM */}
-      <div className="d-flex justify-content-end gap-2 pt-3 border-top">
+      {/* FOOTER GHIM CỐ ĐỊNH Ở ĐÁY VỚI NÚT THÊM / HỦY ĐỒNG BỘ */}
+      <div className="modal-footer p-3 bg-light border-top flex-shrink-0 d-flex justify-content-end gap-2">
         {onCancel && (
           <button type="button" className="btn btn-outline-secondary btn-sm px-3" onClick={onCancel}>
             Hủy Bỏ
           </button>
         )}
-        <button type="submit" className="btn btn-primary btn-sm px-4 d-flex align-items-center">
+        <button 
+          type="submit" 
+          className="btn btn-primary btn-sm px-4 d-flex align-items-center"
+          style={{ background: 'linear-gradient(135deg, #175cdd 0%, #10b981 100%)', border: 'none' }}
+        >
           <i className="bi bi-check2-circle fs-6 me-1"></i>
-          {initialData ? 'Cập Nhật Hồ Sơ' : 'Lưu Hồ Sơ Bệnh Nhân'}
+          <span>{initialData ? 'Cập Nhật Hồ Sơ' : 'Lưu Hồ Sơ Bệnh Nhân'}</span>
         </button>
       </div>
     </form>

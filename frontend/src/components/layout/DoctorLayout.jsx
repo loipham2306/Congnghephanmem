@@ -9,7 +9,10 @@ export default function DoctorLayout({
   children, 
   title = 'Bàn Khám Bệnh', 
   subtitle = 'Phân hệ Bác sĩ khám chữa bệnh',
-  waitingCount = 4
+  waitingCount = null,
+  recordsCount = null,
+  prescriptionsCount = null,
+  patientsCount = null
 }) {
   const { user, logout } = useAuth()
   const navigate = useNavigate()
@@ -44,7 +47,7 @@ export default function DoctorLayout({
       path: '/doctor/ban-kham',
       label: 'Bàn Khám Bệnh',
       icon: 'bi-heart-pulse-fill',
-      badge: waitingCount > 0 ? `${waitingCount} chờ` : null,
+      badge: waitingCount !== null && waitingCount > 0 ? `${waitingCount} chờ` : null,
       badgeColor: 'bg-warning text-dark'
     },
     {
@@ -57,17 +60,23 @@ export default function DoctorLayout({
     {
       path: '/doctor/benh-an',
       label: 'Hồ Sơ Bệnh Án',
-      icon: 'bi-clipboard2-pulse-fill'
+      icon: 'bi-clipboard2-pulse-fill',
+      badge: recordsCount !== null ? `${recordsCount}` : null,
+      badgeColor: 'bg-info-subtle text-info border'
     },
     {
       path: '/doctor/ke-don',
       label: 'Kê Đơn Thuốc',
-      icon: 'bi-capsule'
+      icon: 'bi-capsule',
+      badge: prescriptionsCount !== null ? `${prescriptionsCount}` : null,
+      badgeColor: 'bg-primary-subtle text-primary border'
     },
     {
       path: '/doctor/benh-nhan',
       label: 'Bệnh Nhân Của Tôi',
-      icon: 'bi-people-fill'
+      icon: 'bi-people-fill',
+      badge: patientsCount !== null ? `${patientsCount}` : null,
+      badgeColor: 'bg-success-subtle text-success border'
     },
     {
       path: '/doctor/lich-truc',
@@ -76,9 +85,9 @@ export default function DoctorLayout({
     }
   ]
 
-  const doctorName = user?.fullName || 'BS. CKII. Trần Văn Hùng'
-  const doctorDepartment = 'Khoa Tim Mạch & Nội Khoa'
-  const clinicRoom = 'Phòng Khám Nội 01 (P.102)'
+  const doctorName = user?.fullName || user?.hoten || 'BS. CKII. Nguyễn Hoàng Nam'
+  const doctorDepartment = user?.chuyenkhoa || user?.khoa || 'Khoa Mắt Kỹ Thuật Cao'
+  const clinicRoom = user?.phongkham || 'Phòng Khám Nội 01 (P.102)'
 
   return (
     <div className="ad-wrapper">
@@ -219,12 +228,12 @@ export default function DoctorLayout({
               <i className="bi bi-list fs-5"></i>
             </button>
 
-            <div className="d-flex align-items-center gap-2 min-w-0">
-              <h1 className="ad-page-title">{title}</h1>
+            <div className="d-flex flex-column justify-content-center min-w-0" style={{ height: '46px' }}>
+              <h1 className="ad-page-title text-truncate" style={{ fontSize: '1.12rem', lineHeight: '1.2' }}>{title}</h1>
               {subtitle && (
-                <span className="badge bg-light text-secondary border d-none d-md-inline-block fw-normal text-truncate" style={{ fontSize: '12px', maxWidth: '320px' }}>
+                <div className="text-secondary text-truncate d-none d-md-block" style={{ fontSize: '11.5px', marginTop: '2px', maxWidth: '420px', lineHeight: '1.2' }}>
                   {subtitle}
-                </span>
+                </div>
               )}
             </div>
           </div>
@@ -237,7 +246,7 @@ export default function DoctorLayout({
             </span>
 
             {/* Thông báo ca chờ khám */}
-            {waitingCount > 0 && (
+            {waitingCount !== null && waitingCount > 0 && (
               <span className="badge bg-danger px-2.5 py-1.5 text-white d-inline-flex align-items-center gap-1 shadow-sm" style={{ fontSize: '11.5px' }}>
                 <i className="bi bi-bell-fill"></i>
                 <span>{waitingCount} ca chờ</span>
@@ -245,7 +254,7 @@ export default function DoctorLayout({
             )}
 
             {/* Đồng hồ thời gian thực */}
-            <div className="d-none d-xl-flex align-items-center text-muted small">
+            <div className="d-none d-xl-flex align-items-center text-muted small" style={{ minWidth: '75px' }}>
               <i className="bi bi-clock me-1"></i>
               <span>{currentTime.toLocaleTimeString('vi-VN')}</span>
             </div>
