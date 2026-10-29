@@ -88,6 +88,8 @@ model chitiethoadon {
   madt      Int?
   soluong   Int
   dongia    Decimal   @db.Decimal(12, 2)
+  // Lưu ý: trong PostgreSQL đây là cột GENERATED ALWAYS AS ((soluong)::numeric * dongia) STORED.
+  // Prisma không hỗ trợ generated column nên vẫn khai báo dbgenerated; khi sinh migration phải giữ GENERATED.
   thanhtien Decimal?  @default(dbgenerated("((soluong)::numeric * dongia)")) @db.Decimal(14, 2)
   dichvu    dichvu?   @relation(fields: [madv], references: [madv], onDelete: Restrict, map: "fk_cthd_dichvu")
   donthuoc  donthuoc? @relation(fields: [madt], references: [madt], map: "fk_cthd_donthuoc")
@@ -135,12 +137,17 @@ model hoadon {
   mabn               Int
   malsk              Int                       @unique
   ngaylap            DateTime                  @default(now()) @db.Timestamp(6)
+  ngaythanhtoan      DateTime?                 @db.Timestamp(6)
   tongtien           Decimal                   @default(0) @db.Decimal(14, 2)
   trangthaithanhtoan trang_thai_thanhtoan_enum @default(ChuaThanhToan)
   phuongthuctt       phuong_thuc_tt_enum?
   chitiethoadon      chitiethoadon[]
+  hoantien           hoantien[]
   benhnhan           benhnhan                  @relation(fields: [mabn], references: [mabn], map: "fk_hoadon_benhnhan")
   lichsukham         lichsukham                @relation(fields: [malsk], references: [malsk], map: "fk_hoadon_lichsukham")
+
+  @@index([ngaythanhtoan])
+  @@index([trangthaithanhtoan])
 }
 
 /// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
@@ -155,15 +162,24 @@ model hosobenhan {
 
 /// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
 model lichhen {
-  malh      Int                     @id @default(autoincrement())
-  mabn      Int
-  mabs      Int
-  ngayhen   DateTime                @db.Date
-  giohen    DateTime                @db.Time(6)
-  trangthai trang_thai_lichhen_enum @default(ChoXacNhan)
-  lydokham  String?                 @db.VarChar(255)
-  bacsi     bacsi                   @relation(fields: [mabs], references: [mabs], map: "fk_lichhen_bacsi")
-  benhnhan  benhnhan                @relation(fields: [mabn], references: [mabn], onDelete: Cascade, map: "fk_lichhen_benhnhan")
+  malh            Int                     @id @default(autoincrement())
+  mabn            Int
+  mabs            Int
+  ngayhen         DateTime                @db.Date
+  giohen          DateTime                @db.Time(6)
+  trangthai       trang_thai_lichhen_enum @default(ChoXacNhan)
+  lydokham        String?                 @db.VarChar(255)
+  lydohuy         String?                 @db.VarChar(255)
+  thoigianhuy     DateTime?               @db.Timestamp(6)
+  thoigiantiepdon DateTime?               @db.Timestamp(6)
+  sohangcho       Int?
+  bacsi           bacsi                   @relation(fields: [mabs], references: [mabs], map: "fk_lichhen_bacsi")
+  benhnhan        benhnhan                @relation(fields: [mabn], references: [mabn], onDelete: Cascade, map: "fk_lichhen_benhnhan")
+  lichsukham      lichsukham?
+
+  @@index([ngayhen])
+  @@index([mabs, ngayhen])
+  @@index([mabn, ngayhen])
 }
 
 /// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
@@ -171,6 +187,7 @@ model lichsukham {
   malsk             Int                 @id @default(autoincrement())
   mabn              Int
   mabs              Int
+  malh              Int?                @unique
   ngay              DateTime            @default(now()) @db.Timestamp(6)
   trieuchung        String?
   chandoan          String?
@@ -180,6 +197,9 @@ model lichsukham {
   hoadon            hoadon?
   bacsi             bacsi               @relation(fields: [mabs], references: [mabs], map: "fk_lichsukham_bacsi")
   benhnhan          benhnhan            @relation(fields: [mabn], references: [mabn], map: "fk_lichsukham_benhnhan")
+  lichhen           lichhen?            @relation(fields: [malh], references: [malh], map: "fk_lichsukham_lichhen")
+
+  @@index([ngay])
 }
 
 /// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
@@ -222,14 +242,18 @@ model phongkham {
 
 /// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
 model taikhoan {
-  matk        Int                      @id @default(autoincrement())
-  tendangnhap String                   @unique @db.VarChar(50)
-  matkhau     String                   @db.VarChar(255)
-  vaitro      vai_tro_enum
-  trangthai   trang_thai_taikhoan_enum @default(HoatDong)
-  ngaytao     DateTime                 @default(now()) @db.Timestamp(6)
-  benhnhan    benhnhan?
-  nhanvien    nhanvien?
+  matk           Int                      @id @default(autoincrement())
+  tendangnhap    String                   @unique @db.VarChar(50)
+  matkhau        String                   @db.VarChar(255)
+  vaitro         vai_tro_enum
+  trangthai      trang_thai_taikhoan_enum @default(HoatDong)
+  ngaytao        DateTime                 @default(now()) @db.Timestamp(6)
+  benhnhan       benhnhan?
+  nhanvien       nhanvien?
+  refresh_token  refresh_token[]
+  password_reset password_reset[]
+  hoantien       hoantien[]
+  nhatky         nhatky[]
 }
 
 /// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
@@ -244,6 +268,69 @@ model thuoc {
   nhasanxuat      String?           @db.VarChar(100)
   chitietdonthuoc chitietdonthuoc[]
   chitiethoadon   chitiethoadon[]
+}
+
+// ========================================================
+// CÁC BẢNG BỔ SUNG: HOÀN TIỀN, REFRESH TOKEN, QUÊN MẬT KHẨU, NHẬT KÝ
+// ========================================================
+
+model hoantien {
+  maht       Int                  @id @default(autoincrement())
+  mahd       Int
+  matk       Int?
+  sotien     Decimal              @db.Decimal(14, 2)
+  lydo       String               @db.VarChar(255)
+  phuongthuc phuong_thuc_tt_enum?
+  ngaytao    DateTime             @default(now()) @db.Timestamp(6)
+  hoadon     hoadon               @relation(fields: [mahd], references: [mahd], map: "fk_hoantien_hoadon")
+  taikhoan   taikhoan?            @relation(fields: [matk], references: [matk], map: "fk_hoantien_taikhoan")
+
+  @@index([mahd])
+  @@index([ngaytao])
+}
+
+model refresh_token {
+  mrt              Int       @id @default(autoincrement())
+  matk             Int
+  token_hash       String    @unique @db.VarChar(64)
+  expires_at       DateTime  @db.Timestamp(6)
+  revoked_at       DateTime? @db.Timestamp(6)
+  replaced_by_hash String?   @db.VarChar(64)
+  created_at       DateTime  @default(now()) @db.Timestamp(6)
+  taikhoan         taikhoan  @relation(fields: [matk], references: [matk], onDelete: Cascade, map: "fk_refresh_token_taikhoan")
+
+  @@index([matk])
+  @@index([expires_at])
+}
+
+model password_reset {
+  mpr        Int       @id @default(autoincrement())
+  matk       Int
+  otp_hash   String    @db.VarChar(64)
+  expires_at DateTime  @db.Timestamp(6)
+  used_at    DateTime? @db.Timestamp(6)
+  attempts   Int       @default(0)
+  created_at DateTime  @default(now()) @db.Timestamp(6)
+  taikhoan   taikhoan  @relation(fields: [matk], references: [matk], onDelete: Cascade, map: "fk_password_reset_taikhoan")
+
+  @@index([matk])
+  @@index([expires_at])
+}
+
+model nhatky {
+  mank        Int       @id @default(autoincrement())
+  matk        Int?
+  hanhdong    String    @db.VarChar(50)
+  doituong    String    @db.VarChar(50)
+  doituongId  Int?
+  dulieutruoc Json?
+  dulieusau   Json?
+  ip          String?   @db.VarChar(45)
+  thoidiem    DateTime  @default(now()) @db.Timestamp(6)
+  taikhoan    taikhoan? @relation(fields: [matk], references: [matk], map: "fk_nhatky_taikhoan")
+
+  @@index([thoidiem])
+  @@index([doituong, doituongId])
 }
 
 enum chuc_vu_enum {
@@ -277,6 +364,7 @@ enum phuong_thuc_tt_enum {
 enum trang_thai_lichhen_enum {
   ChoXacNhan
   DaXacNhan
+  DaTiepDon
   DaKham
   DaHuy
 }
