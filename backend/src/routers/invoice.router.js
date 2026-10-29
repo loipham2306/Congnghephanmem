@@ -14,11 +14,15 @@ const {
     cancelInvoiceController,
     getAllInvoicesController,
     getInvoiceByIdController,
+    getInvoiceByExamController,
     getMyInvoicesController,
+    refundInvoiceController,
 } = require("../controllers/invoice.controller");
 
 const {
     validateInvoiceId,
+    validateExamIdParam,
+    validateRefund,
     validateCreateInvoice,
     validateInvoicePayment,
     validateAddInvoiceItem,
@@ -53,10 +57,20 @@ router.get(
     getAllInvoicesController,
 );
 
-// 4. Xem chi tiết một hóa đơn
+// 4. Lấy hóa đơn theo lần khám
+router.get(
+    "/by-exam/:malsk",
+    authMiddleware,
+    roleMiddleware("Admin", "LeTan", "BenhNhan"),
+    validateExamIdParam,
+    getInvoiceByExamController,
+);
+
+// 5. Xem chi tiết một hóa đơn
 router.get(
     "/:id",
     authMiddleware,
+    roleMiddleware("Admin", "LeTan", "BenhNhan"),
     validateInvoiceId,
     getInvoiceByIdController,
 );
@@ -97,6 +111,16 @@ router.put(
     roleMiddleware("Admin", "LeTan"),
     validateInvoiceId,
     cancelInvoiceController,
+);
+
+// 9. Hoàn tiền hóa đơn (chỉ Admin)
+router.post(
+    "/:id/refund",
+    authMiddleware,
+    roleMiddleware("Admin"),
+    validateInvoiceId,
+    validateRefund,
+    refundInvoiceController,
 );
 
 module.exports = router;

@@ -2,7 +2,7 @@
 // VALIDATOR: KIỂM TRA DỮ LIỆU ĐẦU VÀO PHÂN HỆ HÓA ĐƠN VIỆN PHÍ
 // ========================================================
 
-const { DATE_REGEX } = require("../constants/shift.constant");
+const { isValidDateOnly } = require("../utils/date");
 
 const PAYMENT_METHODS = ["TienMat", "ChuyenKhoan", "TheThanhToan", "ViDienTu"];
 const PAYMENT_STATUSES = ["ChuaThanhToan", "DaThanhToan", "DaHuy"];
@@ -134,14 +134,17 @@ function validateAddInvoiceItem(req, res, next) {
 function validateInvoiceQuery(req, res, next) {
     const { date, fromDate, toDate, status, paymentMethod, patientId, page, limit } = req.query;
 
-    if (date && !DATE_REGEX.test(date.trim())) {
+    if (date && !isValidDateOnly(date)) {
         return res.status(400).json({ success: false, message: "Tham số date không đúng định dạng YYYY-MM-DD!" });
     }
-    if (fromDate && !DATE_REGEX.test(fromDate.trim())) {
+    if (fromDate && !isValidDateOnly(fromDate)) {
         return res.status(400).json({ success: false, message: "Tham số fromDate không đúng định dạng YYYY-MM-DD!" });
     }
-    if (toDate && !DATE_REGEX.test(toDate.trim())) {
+    if (toDate && !isValidDateOnly(toDate)) {
         return res.status(400).json({ success: false, message: "Tham số toDate không đúng định dạng YYYY-MM-DD!" });
+    }
+    if (fromDate && toDate && fromDate.trim() > toDate.trim()) {
+        return res.status(400).json({ success: false, message: "fromDate không được lớn hơn toDate!" });
     }
 
     if (status && !PAYMENT_STATUSES.includes(status)) {
@@ -158,22 +161,61 @@ function validateInvoiceQuery(req, res, next) {
         });
     }
 
-    if (patientId && (isNaN(Number(patientId)) || Number(patientId) <= 0)) {
+    if (patientId && (!Number.isInteger(Number(patientId)) || Number(patientId) <= 0)) {
         return res.status(400).json({ success: false, message: "patientId phải là số nguyên dương!" });
     }
 
-    if (page && (isNaN(Number(page)) || Number(page) <= 0)) {
+    if (page && (!Number.isInteger(Number(page)) || Number(page) <= 0)) {
         return res.status(400).json({ success: false, message: "page phải là số nguyên dương!" });
     }
-    if (limit && (isNaN(Number(limit)) || Number(limit) <= 0 || Number(limit) > 100)) {
+    if (limit && (!Number.isInteger(Number(limit)) || Number(limit) <= 0 || Number(limit) > 100)) {
         return res.status(400).json({ success: false, message: "limit phải từ 1 đến 100!" });
     }
 
     next();
 }
 
+function validateExamIdParam(req, res, next) {
+    const malsk = Number(req.params.malsk);
+    if (!Number.isInteger(malsk) || malsk <= 0) {
+        return res.status(400).json({
+            success: false,
+            message: "Mã lần khám (:malsk) phải là số nguyên dương!",
+        });
+    }
+    return next();
+}
+
+function validateRefund(req, res, next) {
+    const { sotien, lydo, phuongthuc } = req.body;
+
+    const amount = Number(sotien);
+    if (!Number.isFinite(amount) || amount <= 0) {
+        return res.status(400).json({
+            success: false,
+            message: "Số tiền hoàn (sotien) phải lớn hơn 0!",
+        });
+    }
+    if (!String(lydo || "").trim() || String(lydo).trim().length > 255) {
+        return res.status(400).json({
+            success: false,
+            message: "Lý do hoàn tiền là bắt buộc và không được vượt quá 255 ký tự!",
+        });
+    }
+    if (phuongthuc !== undefined && !PAYMENT_METHODS.includes(phuongthuc)) {
+        return res.status(400).json({
+            success: false,
+            message: `Phương thức hoàn tiền không hợp lệ! Chấp nhận: ${PAYMENT_METHODS.join(", ")}`,
+        });
+    }
+
+    return next();
+}
+
 module.exports = {
     validateInvoiceId,
+    validateExamIdParam,
+    validateRefund,
     validateCreateInvoice,
     validateInvoicePayment,
     validateAddInvoiceItem,

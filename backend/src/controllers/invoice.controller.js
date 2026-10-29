@@ -10,7 +10,9 @@ const {
     cancelInvoiceService,
     getAllInvoicesService,
     getInvoiceByIdService,
+    getInvoiceByExamService,
     getMyInvoicesService,
+    refundInvoiceService,
 } = require("../services/invoice.service");
 
 // 1. Khởi tạo hóa đơn từ lần khám bệnh
@@ -111,7 +113,35 @@ async function getInvoiceByIdController(req, res, next) {
     }
 }
 
-// 8. Bệnh nhân xem hóa đơn của mình
+// 8. Lấy hóa đơn theo lần khám
+async function getInvoiceByExamController(req, res, next) {
+    try {
+        const invoice = await getInvoiceByExamService(req.params.malsk, req.user);
+        return res.status(200).json({
+            success: true,
+            message: "Lấy hóa đơn theo lần khám thành công!",
+            data: invoice,
+        });
+    } catch (error) {
+        return next(error);
+    }
+}
+
+// 9. Hoàn tiền hóa đơn (Admin)
+async function refundInvoiceController(req, res, next) {
+    try {
+        const invoice = await refundInvoiceService(req.params.id, req.body, req.user);
+        return res.status(200).json({
+            success: true,
+            message: "Hoàn tiền hóa đơn thành công!",
+            data: invoice,
+        });
+    } catch (error) {
+        return next(error);
+    }
+}
+
+// 10. Bệnh nhân xem hóa đơn của mình
 async function getMyInvoicesController(req, res, next) {
     try {
         const invoices = await getMyInvoicesService(req.user.matk, req.query);
@@ -133,5 +163,7 @@ module.exports = {
     cancelInvoiceController,
     getAllInvoicesController,
     getInvoiceByIdController,
+    getInvoiceByExamController,
     getMyInvoicesController,
+    refundInvoiceController,
 };

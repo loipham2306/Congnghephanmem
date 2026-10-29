@@ -3,19 +3,38 @@
 // ========================================================
 
 const prisma = require("../config/prisma");
+const { PAYMENT_METHODS } = require("../constants/invoice.constant");
+const { startOfDayVN, endOfDayVN } = require("../utils/date");
+const { writeAudit } = require("../utils/audit");
+
+function toNumber(value) {
+    return value !== null && value !== undefined ? Number(value) : 0;
+}
 
 // Định dạng dữ liệu hóa đơn trả về cho client
 function formatInvoiceResponse(invoice) {
     if (!invoice) return null;
+
+    const refunds = Array.isArray(invoice.hoantien) ? invoice.hoantien : [];
+    const totalRefunded = refunds.reduce((sum, item) => sum + toNumber(item.sotien), 0);
 
     return {
         mahd: invoice.mahd,
         mabn: invoice.mabn,
         malsk: invoice.malsk,
         ngaylap: invoice.ngaylap,
-        tongtien: invoice.tongtien !== null && invoice.tongtien !== undefined ? Number(invoice.tongtien) : 0,
+        ngaythanhtoan: invoice.ngaythanhtoan || null,
+        tongtien: toNumber(invoice.tongtien),
+        tonghoantien: totalRefunded,
         trangthaithanhtoan: invoice.trangthaithanhtoan,
         phuongthuctt: invoice.phuongthuctt,
+        hoantien: refunds.map((item) => ({
+            maht: item.maht,
+            sotien: toNumber(item.sotien),
+            lydo: item.lydo,
+            phuongthuc: item.phuongthuc,
+            ngaytao: item.ngaytao,
+        })),
         benhnhan: invoice.benhnhan
             ? {
                 mabn: invoice.benhnhan.mabn,
@@ -120,7 +139,8 @@ async function createInvoiceService({ malsk, phuongthuctt }) {
                 mabn: exam.mabn,
                 malsk: examId,
                 trangthaithanhtoan: "ChuaThanhToan",
-                phuongthuctt: phuongthuctt || null,
+                // Chỉ ghi nhận phương thức khi thực sự thanh toán.
+                phuongthuctt: null,
             },
         });
 
@@ -206,7 +226,21 @@ async function addInvoiceItemService(invoiceId, itemData) {
         throw error;
     }
 
-    let finalPrice = dongia !== undefined ? Number(dongia) : null;
+    if (Boolean(madv) === Boolean(mathuoc)) {
+        const error = new Error("Mỗi dòng viện phí phải chọn đúng một loại: dịch vụ (madv) hoặc thuốc (mathuoc)!");
+        error.statusCode = 400;
+        throw error;
+    }
+
+    const quantity = Number(soluong);
+    if (!Number.isInteger(quantity) || quantity <= 0) {
+        const error = new Error("Số lượng (soluong) phải là số nguyên dương!");
+        error.statusCode = 400;
+        throw error;
+    }
+
+    // Giá luôn lấy từ danh mục phía server, không tin tưởng giá do client gửi lên.
+    let finalPrice;
 
     if (madv) {
         const service = await prisma.dichvu.findUnique({
@@ -217,8 +251,8 @@ async function addInvoiceItemService(invoiceId, itemData) {
             error.statusCode = 404;
             throw error;
         }
-        if (finalPrice === null) finalPrice = Number(service.dongia);
-    } else if (mathuoc) {
+        finalPrice = Number(service.dongia);
+    } else {
         const medicine = await prisma.thuoc.findUnique({
             where: { mathuoc: Number(mathuoc) },
         });
@@ -227,7 +261,7 @@ async function addInvoiceItemService(invoiceId, itemData) {
             error.statusCode = 404;
             throw error;
         }
-        if (finalPrice === null) finalPrice = Number(medicine.dongia);
+        finalPrice = Number(medicine.dongia);
     }
 
     // Thêm dòng chi tiết (Trigger DB sẽ tự động tính lại TongTien trong HoaDon)
@@ -237,7 +271,7 @@ async function addInvoiceItemService(invoiceId, itemData) {
             madv: madv ? Number(madv) : null,
             mathuoc: mathuoc ? Number(mathuoc) : null,
             madt: madt ? Number(madt) : null,
-            soluong: Number(soluong),
+            soluong: quantity,
             dongia: finalPrice,
         },
     });
@@ -364,14 +398,28 @@ async function payInvoiceService(invoiceId, { phuongthuctt }) {
         throw error;
     }
 
+    if (!PAYMENT_METHODS.includes(phuongthuctt)) {
+        const error = new Error(`Phương thức thanh toán không hợp lệ! Chỉ chấp nhận: ${PAYMENT_METHODS.join(", ")}`);
+        error.statusCode = 400;
+        throw error;
+    }
+
+    if (Number(invoice.tongtien) <= 0) {
+        const error = new Error("Hóa đơn chưa có mục viện phí nào, không thể thanh toán!");
+        error.statusCode = 400;
+        throw error;
+    }
+
     const updated = await prisma.hoadon.update({
         where: { mahd },
         data: {
             trangthaithanhtoan: "DaThanhToan",
             phuongthuctt,
+            ngaythanhtoan: new Date(),
         },
         include: {
             benhnhan: true,
+            hoantien: { orderBy: { ngaytao: "asc" } },
             lichsukham: {
                 include: {
                     bacsi: {
@@ -422,30 +470,58 @@ async function cancelInvoiceService(invoiceId, user) {
         throw error;
     }
 
-    const updated = await prisma.hoadon.update({
+    const refunded = await prisma.hoantien.aggregate({
         where: { mahd },
-        data: {
-            trangthaithanhtoan: "DaHuy",
-        },
-        include: {
-            benhnhan: true,
-            lichsukham: {
-                include: {
-                    bacsi: {
-                        include: {
-                            nhanvien: true,
-                            chuyenkhoa: true,
+        _sum: { sotien: true },
+    });
+    const refundable = Math.max(0, Number(invoice.tongtien) - Number(refunded._sum.sotien || 0));
+
+    const updated = await prisma.$transaction(async (tx) => {
+        if (invoice.trangthaithanhtoan === "DaThanhToan" && refundable > 0) {
+            await tx.hoantien.create({
+                data: {
+                    mahd,
+                    matk: user.matk,
+                    sotien: refundable,
+                    lydo: "Hủy hóa đơn đã thanh toán",
+                    phuongthuc: invoice.phuongthuctt,
+                },
+            });
+        }
+
+        return tx.hoadon.update({
+            where: { mahd },
+            data: { trangthaithanhtoan: "DaHuy" },
+            include: {
+                benhnhan: true,
+                hoantien: { orderBy: { ngaytao: "asc" } },
+                lichsukham: {
+                    include: {
+                        bacsi: {
+                            include: {
+                                nhanvien: true,
+                                chuyenkhoa: true,
+                            },
                         },
                     },
                 },
-            },
-            chitiethoadon: {
-                include: {
-                    dichvu: true,
-                    thuoc: true,
+                chitiethoadon: {
+                    include: {
+                        dichvu: true,
+                        thuoc: true,
+                    },
                 },
             },
-        },
+        });
+    });
+
+    await writeAudit({
+        matk: user.matk,
+        hanhdong: "HUY_HOA_DON",
+        doituong: "hoadon",
+        doituongId: mahd,
+        truoc: { trangthai: invoice.trangthaithanhtoan, tongtien: Number(invoice.tongtien) },
+        sau: { trangthai: updated.trangthaithanhtoan, hoantien: refundable },
     });
 
     return formatInvoiceResponse(updated);
@@ -457,20 +533,21 @@ async function cancelInvoiceService(invoiceId, user) {
 async function getAllInvoicesService(query = {}) {
     const { date, fromDate, toDate, status, paymentMethod, patientId, search, page = 1, limit = 10 } = query;
 
-    const pageNum = Number(page) || 1;
-    const limitNum = Number(limit) || 10;
+    const pageNum = Math.max(1, Math.floor(Number(page) || 1));
+    const limitNum = Math.min(100, Math.max(1, Math.floor(Number(limit) || 10)));
     const skip = (pageNum - 1) * limitNum;
 
     const where = {};
 
     if (date) {
-        const startOfDay = new Date(`${date.trim()}T00:00:00.000Z`);
-        const endOfDay = new Date(`${date.trim()}T23:59:59.999Z`);
-        where.ngaylap = { gte: startOfDay, lte: endOfDay };
+        where.ngaylap = {
+            gte: startOfDayVN(date.trim()),
+            lte: endOfDayVN(date.trim()),
+        };
     } else if (fromDate || toDate) {
         where.ngaylap = {};
-        if (fromDate) where.ngaylap.gte = new Date(`${fromDate.trim()}T00:00:00.000Z`);
-        if (toDate) where.ngaylap.lte = new Date(`${toDate.trim()}T23:59:59.999Z`);
+        if (fromDate) where.ngaylap.gte = startOfDayVN(fromDate.trim());
+        if (toDate) where.ngaylap.lte = endOfDayVN(toDate.trim());
     }
 
     if (status) {
@@ -488,11 +565,13 @@ async function getAllInvoicesService(query = {}) {
     if (search && search.trim() !== "") {
         const keyword = search.trim();
         where.benhnhan = {
-            OR: [
-                { hoten: { contains: keyword, mode: "insensitive" } },
-                { sdt: { contains: keyword } },
-                { cccd: { contains: keyword } },
-            ],
+            is: {
+                OR: [
+                    { hoten: { contains: keyword, mode: "insensitive" } },
+                    { sdt: { contains: keyword } },
+                    { cccd: { contains: keyword } },
+                ],
+            },
         };
     }
 
@@ -503,6 +582,7 @@ async function getAllInvoicesService(query = {}) {
             take: limitNum,
             include: {
                 benhnhan: true,
+                hoantien: { orderBy: { ngaytao: "asc" } },
                 lichsukham: {
                     include: {
                         bacsi: {
@@ -543,6 +623,7 @@ async function getInvoiceByIdService(id, user) {
         where: { mahd },
         include: {
             benhnhan: true,
+            hoantien: { orderBy: { ngaytao: "asc" } },
             lichsukham: {
                 include: {
                     bacsi: {
@@ -610,6 +691,7 @@ async function getMyInvoicesService(matk, query = {}) {
     const invoices = await prisma.hoadon.findMany({
         where,
         include: {
+            hoantien: { orderBy: { ngaytao: "asc" } },
             lichsukham: {
                 include: {
                     bacsi: {
@@ -633,6 +715,156 @@ async function getMyInvoicesService(matk, query = {}) {
     return invoices.map(formatInvoiceResponse);
 }
 
+/**
+ * 9. Lấy hóa đơn theo lần khám (dùng cho màn hình thu ngân)
+ */
+async function getInvoiceByExamService(malsk, user) {
+    const examId = Number(malsk);
+    const invoice = await prisma.hoadon.findUnique({
+        where: { malsk: examId },
+        include: {
+            benhnhan: true,
+            hoantien: { orderBy: { ngaytao: "asc" } },
+            lichsukham: {
+                include: {
+                    bacsi: {
+                        include: { nhanvien: true, chuyenkhoa: true },
+                    },
+                },
+            },
+            chitiethoadon: {
+                include: { dichvu: true, thuoc: true },
+            },
+        },
+    });
+
+    if (!invoice) {
+        const error = new Error(`Lần khám #${examId} chưa được lập hóa đơn`);
+        error.statusCode = 404;
+        throw error;
+    }
+
+    if (user.vaitro === "BenhNhan") {
+        const patient = await prisma.benhnhan.findUnique({
+            where: { matk: Number(user.matk) },
+            select: { mabn: true },
+        });
+        if (!patient || invoice.mabn !== patient.mabn) {
+            const error = new Error("Bạn không có quyền truy cập hóa đơn này!");
+            error.statusCode = 403;
+            throw error;
+        }
+    }
+
+    return formatInvoiceResponse(invoice);
+}
+
+/**
+ * 10. Hoàn tiền một phần / toàn bộ hóa đơn (chỉ Admin)
+ */
+async function refundInvoiceService(invoiceId, { sotien, lydo, phuongthuc }, user) {
+    const mahd = Number(invoiceId);
+
+    if (user.vaitro !== "Admin") {
+        const error = new Error("Chỉ Quản trị viên (Admin) mới có quyền hoàn tiền!");
+        error.statusCode = 403;
+        throw error;
+    }
+
+    const invoice = await prisma.hoadon.findUnique({
+        where: { mahd },
+        include: { hoantien: true },
+    });
+
+    if (!invoice) {
+        const error = new Error(`Không tìm thấy hóa đơn với mã ID: ${mahd}`);
+        error.statusCode = 404;
+        throw error;
+    }
+    if (invoice.trangthaithanhtoan !== "DaThanhToan") {
+        const error = new Error("Chỉ có thể hoàn tiền cho hóa đơn đã thanh toán!");
+        error.statusCode = 400;
+        throw error;
+    }
+
+    const amount = Number(sotien);
+    if (!Number.isFinite(amount) || amount <= 0) {
+        const error = new Error("Số tiền hoàn phải lớn hơn 0!");
+        error.statusCode = 400;
+        throw error;
+    }
+
+    const refundedBefore = (invoice.hoantien || []).reduce(
+        (sum, item) => sum + Number(item.sotien),
+        0,
+    );
+    const refundable = Number(invoice.tongtien) - refundedBefore;
+
+    if (amount > refundable) {
+        const error = new Error(`Số tiền hoàn vượt quá số tiền còn lại có thể hoàn (${refundable})!`);
+        error.statusCode = 400;
+        throw error;
+    }
+
+    if (!String(lydo || "").trim()) {
+        const error = new Error("Vui lòng nhập lý do hoàn tiền!");
+        error.statusCode = 400;
+        throw error;
+    }
+
+    const refundMethod = phuongthuc || invoice.phuongthuctt;
+    if (!PAYMENT_METHODS.includes(refundMethod)) {
+        const error = new Error("Phương thức hoàn tiền không hợp lệ!");
+        error.statusCode = 400;
+        throw error;
+    }
+
+    const updated = await prisma.$transaction(async (tx) => {
+        await tx.hoantien.create({
+            data: {
+                mahd,
+                matk: user.matk,
+                sotien: amount,
+                lydo: String(lydo).trim().slice(0, 255),
+                phuongthuc: refundMethod,
+            },
+        });
+
+        if (refundedBefore + amount >= Number(invoice.tongtien)) {
+            await tx.hoadon.update({
+                where: { mahd },
+                data: { trangthaithanhtoan: "DaHuy" },
+            });
+        }
+
+        return tx.hoadon.findUnique({
+            where: { mahd },
+            include: {
+                benhnhan: true,
+                hoantien: { orderBy: { ngaytao: "asc" } },
+                lichsukham: {
+                    include: {
+                        bacsi: { include: { nhanvien: true, chuyenkhoa: true } },
+                    },
+                },
+                chitiethoadon: {
+                    include: { dichvu: true, thuoc: true },
+                },
+            },
+        });
+    });
+
+    await writeAudit({
+        matk: user.matk,
+        hanhdong: "HOAN_TIEN",
+        doituong: "hoadon",
+        doituongId: mahd,
+        sau: { sotien: amount, lydo: String(lydo).trim() },
+    });
+
+    return formatInvoiceResponse(updated);
+}
+
 module.exports = {
     createInvoiceService,
     addInvoiceItemService,
@@ -641,5 +873,7 @@ module.exports = {
     cancelInvoiceService,
     getAllInvoicesService,
     getInvoiceByIdService,
+    getInvoiceByExamService,
     getMyInvoicesService,
+    refundInvoiceService,
 };
