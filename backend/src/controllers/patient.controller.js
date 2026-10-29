@@ -1,4 +1,5 @@
 const {
+    createPatientService,
     getMyProfileService,
     getMyMedicalRecordService,
     updateMyMedicalRecordService,
@@ -12,7 +13,26 @@ const {
     deleteMyAccountService,
     resetMyMedicalRecordService,
 } = require("../services/patient.service");
+const { getClientIp } = require("../utils/audit");
 
+
+// 0. Lễ tân tạo hồ sơ bệnh nhân vãng lai tại quầy
+async function createPatientController(req, res, next) {
+    try {
+        const patient = await createPatientService(
+            req.body,
+            req.user,
+            getClientIp(req),
+        );
+        return res.status(201).json({
+            success: true,
+            message: "Tạo hồ sơ bệnh nhân thành công",
+            data: patient,
+        });
+    } catch (error) {
+        return next(error);
+    }
+}
 
 // 1. Xem thông tin cá nhân của Bệnh nhân
 async function getMyProfileController(req, res, next) {
@@ -195,6 +215,7 @@ async function resetMyMedicalRecordController(req, res, next) {
 }
 
 module.exports = {
+    createPatientController,
     getMyProfileController,
     updateMyProfileController,
     getMyMedicalRecordController,

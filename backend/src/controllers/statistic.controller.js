@@ -108,10 +108,80 @@ async function getTopMedicines(req, res, next) {
     }
 }
 
+async function getPatients(req, res, next) {
+    try {
+        const { startDate, endDate } = req.query;
+        const result = await statisticService.getPatientStatisticsService({ startDate, endDate });
+        return res.status(200).json({
+            status: "success",
+            message: "Lấy thống kê bệnh nhân thành công",
+            data: result,
+        });
+    } catch (error) {
+        return next(error);
+    }
+}
+
+async function getRevenueBySpecialty(req, res, next) {
+    try {
+        const { startDate, endDate } = req.query;
+        const result = await statisticService.getRevenueBySpecialtyOrDoctorService({
+            startDate,
+            endDate,
+            groupBy: "specialty",
+        });
+        return res.status(200).json({
+            status: "success",
+            message: "Lấy doanh thu theo chuyên khoa thành công",
+            data: result,
+        });
+    } catch (error) {
+        return next(error);
+    }
+}
+
+async function getRevenueByDoctor(req, res, next) {
+    try {
+        const { startDate, endDate } = req.query;
+        const result = await statisticService.getRevenueBySpecialtyOrDoctorService({
+            startDate,
+            endDate,
+            groupBy: "doctor",
+        });
+        return res.status(200).json({
+            status: "success",
+            message: "Lấy doanh thu theo bác sĩ thành công",
+            data: result,
+        });
+    } catch (error) {
+        return next(error);
+    }
+}
+
+async function exportRevenue(req, res, next) {
+    try {
+        const { startDate, endDate, groupBy } = req.query;
+        const result = await statisticService.exportRevenueCsvService({
+            startDate,
+            endDate,
+            groupBy,
+        });
+        res.setHeader("Content-Type", "text/csv; charset=utf-8");
+        res.setHeader("Content-Disposition", `attachment; filename="${result.filename}"`);
+        return res.status(200).send(`\uFEFF${result.csv}`);
+    } catch (error) {
+        return next(error);
+    }
+}
+
 module.exports = {
     getOverview,
     getRevenue,
     getExaminations,
     getTopServices,
     getTopMedicines,
+    getPatients,
+    getRevenueBySpecialty,
+    getRevenueByDoctor,
+    exportRevenue,
 };

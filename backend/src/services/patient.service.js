@@ -1,4 +1,64 @@
 const prisma = require("../config/prisma");
+const { parseDateOnly } = require("../utils/date");
+const { writeAudit } = require("../utils/audit");
+
+// Tạo hồ sơ bệnh nhân tại quầy (bệnh nhân vãng lai, chưa có tài khoản portal)
+async function createPatientService(payload, actor = null, ip = null) {
+    const {
+        hoten,
+        gioitinh,
+        ngaysinh,
+        sdt,
+        diachi,
+        cccd,
+        sobhyt,
+    } = payload;
+
+    if (cccd || sobhyt) {
+        const duplicate = await prisma.benhnhan.findFirst({
+            where: {
+                OR: [
+                    ...(cccd ? [{ cccd }] : []),
+                    ...(sobhyt ? [{ sobhyt }] : []),
+                ],
+            },
+        });
+
+        if (duplicate) {
+            const error = new Error(
+                duplicate.cccd === cccd
+                    ? "Số CCCD đã tồn tại trong hệ thống"
+                    : "Số thẻ BHYT đã tồn tại trong hệ thống",
+            );
+            error.statusCode = 409;
+            throw error;
+        }
+    }
+
+    const patient = await prisma.benhnhan.create({
+        data: {
+            hoten,
+            gioitinh,
+            ngaysinh: parseDateOnly(ngaysinh) || new Date(ngaysinh),
+            sdt,
+            diachi: diachi || null,
+            cccd: cccd || null,
+            sobhyt: sobhyt || null,
+        },
+    });
+
+    await writeAudit({
+        matk: actor?.matk,
+        hanhdong: "TAO_BENH_NHAN",
+        doituong: "benhnhan",
+        doituongId: patient.mabn,
+        sau: { hoten: patient.hoten, sdt: patient.sdt },
+        ip,
+    });
+
+    return patient;
+}
+
 async function getMyProfileService(matk) {
     const patient = await prisma.benhnhan.findUnique({
         where: { matk: Number(matk) },
@@ -46,7 +106,7 @@ async function updateMyProfileService(matk, profileData) {
     const dataToUpdate = {};
     if (hoten !== undefined) dataToUpdate.hoten = hoten;
     if (gioitinh !== undefined) dataToUpdate.gioitinh = gioitinh;
-    if (ngaysinh !== undefined) dataToUpdate.ngaysinh = new Date(ngaysinh);
+    if (ngaysinh !== undefined) dataToUpdate.ngaysinh = parseDateOnly(ngaysinh) || new Date(ngaysinh);
     if (sdt !== undefined) dataToUpdate.sdt = sdt;
     if (diachi !== undefined) dataToUpdate.diachi = diachi;
     if (cccd !== undefined) dataToUpdate.cccd = cccd;
@@ -586,6 +646,7 @@ async function resetMyMedicalRecordService(matk) {
 }
 
 module.exports = {
+    createPatientService,
     getMyProfileService,
     updateMyProfileService,
     getMyMedicalRecordService,

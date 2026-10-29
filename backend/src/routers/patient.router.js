@@ -2,6 +2,7 @@ const express = require("express");
 const authMiddleware = require("../middlewares/auth.middleware");
 const { roleMiddleware } = require("../middlewares/role.middleware");
 const {
+    createPatientController,
     getMyProfileController,
     getMyMedicalRecordController,
     updateMyMedicalRecordController,
@@ -17,6 +18,7 @@ const {
 } = require("../controllers/patient.controller");
 
 const {
+    validateCreatePatient,
     validateUpdateProfile,
     validateUpdateMedicalRecord,
     validateIdParam,
@@ -99,6 +101,15 @@ router.delete(
 // ========================================================
 // 2. DÀNH CHO BÁC SĨ & QUẢN TRỊ VIÊN (/api/patients/...)
 // ========================================================
+
+// 2.0. Lễ tân tạo hồ sơ bệnh nhân vãng lai tại quầy
+router.post(
+    "/",
+    authMiddleware,
+    roleMiddleware("Admin", "LeTan"),
+    validateCreatePatient,
+    createPatientController,
+);
 
 // 2.1. Lấy danh sách toàn bộ bệnh nhân (Admin, LeTan, BacSi)
 router.get(

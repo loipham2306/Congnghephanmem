@@ -12,6 +12,10 @@ const {
     getExaminations,
     getTopServices,
     getTopMedicines,
+    getPatients,
+    getRevenueBySpecialty,
+    getRevenueByDoctor,
+    exportRevenue,
 } = require("../controllers/statistic.controller");
 
 const {
@@ -37,5 +41,17 @@ router.get("/top-services", validateDateRangeQuery, getTopServices);
 
 // 5. Top thuốc kê đơn nhiều nhất
 router.get("/top-medicines", validateDateRangeQuery, getTopMedicines);
+
+// 6. Thống kê bệnh nhân mới
+router.get("/patients", validateDateRangeQuery, getPatients);
+
+// 7. Doanh thu theo chuyên khoa
+router.get("/revenue-by-specialty", validateDateRangeQuery, getRevenueBySpecialty);
+
+// 8. Doanh thu theo bác sĩ
+router.get("/revenue-by-doctor", validateDateRangeQuery, getRevenueByDoctor);
+
+// 9. Xuất CSV doanh thu
+router.get("/export/revenue", validateDateRangeQuery, exportRevenue);
 
 module.exports = router;

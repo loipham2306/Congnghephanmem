@@ -2,19 +2,19 @@
 // VALIDATOR: KIỂM TRA THAM SỐ PHÂN HỆ THỐNG KÊ & BÁO CÁO
 // ========================================================
 
-const { DATE_REGEX } = require("../constants/shift.constant");
+const { isValidDateOnly } = require("../utils/date");
 
 function validateDateRangeQuery(req, res, next) {
     const { startDate, endDate, groupBy, limit } = req.query;
 
-    if (startDate && !DATE_REGEX.test(startDate.trim())) {
+    if (startDate && !isValidDateOnly(startDate)) {
         return res.status(400).json({
             success: false,
             message: "Tham số startDate không hợp lệ! Định dạng yêu cầu là YYYY-MM-DD.",
         });
     }
 
-    if (endDate && !DATE_REGEX.test(endDate.trim())) {
+    if (endDate && !isValidDateOnly(endDate)) {
         return res.status(400).json({
             success: false,
             message: "Tham số endDate không hợp lệ! Định dạng yêu cầu là YYYY-MM-DD.",
@@ -35,7 +35,7 @@ function validateDateRangeQuery(req, res, next) {
         });
     }
 
-    if (limit && (isNaN(Number(limit)) || Number(limit) <= 0 || Number(limit) > 50)) {
+    if (limit && (!Number.isInteger(Number(limit)) || Number(limit) <= 0 || Number(limit) > 50)) {
         return res.status(400).json({
             success: false,
             message: "Tham số limit phải là số nguyên dương từ 1 đến 50!",

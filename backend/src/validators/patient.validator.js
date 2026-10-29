@@ -213,7 +213,69 @@ function validatePatientQuery(req, res, next) {
     next();
 }
 
+function validateCreatePatient(req, res, next) {
+    const { hoten, gioitinh, ngaysinh, sdt, diachi, cccd, sobhyt } = req.body;
+
+    if (typeof hoten !== "string" || hoten.trim().length < 2 || hoten.trim().length > 100) {
+        return res.status(400).json({
+            success: false,
+            message: "Họ và tên phải là chuỗi từ 2 đến 100 ký tự!",
+        });
+    }
+    if (!["Nam", "Nu", "Khac"].includes(gioitinh)) {
+        return res.status(400).json({
+            success: false,
+            message: "Giới tính không hợp lệ! Chỉ chấp nhận: Nam, Nu, Khac",
+        });
+    }
+    if (!ngaysinh || !/^\d{4}-\d{2}-\d{2}$/.test(String(ngaysinh))) {
+        return res.status(400).json({
+            success: false,
+            message: "Ngày sinh không đúng định dạng YYYY-MM-DD!",
+        });
+    }
+    const parsedDate = new Date(`${ngaysinh}T00:00:00.000Z`);
+    if (Number.isNaN(parsedDate.getTime()) || parsedDate.getTime() > Date.now()) {
+        return res.status(400).json({
+            success: false,
+            message: "Ngày sinh không hợp lệ hoặc ở tương lai!",
+        });
+    }
+    if (!/^0\d{9}$/.test(String(sdt || "").trim())) {
+        return res.status(400).json({
+            success: false,
+            message: "Số điện thoại phải gồm 10 chữ số bắt đầu bằng số 0!",
+        });
+    }
+    if (diachi !== undefined && diachi !== null && String(diachi).length > 255) {
+        return res.status(400).json({
+            success: false,
+            message: "Địa chỉ không được vượt quá 255 ký tự!",
+        });
+    }
+    if (cccd !== undefined && cccd !== null && cccd !== "" && !/^\d{12}$/.test(String(cccd).trim())) {
+        return res.status(400).json({
+            success: false,
+            message: "Số CCCD phải gồm đúng 12 chữ số!",
+        });
+    }
+    if (sobhyt !== undefined && sobhyt !== null && sobhyt !== "" && String(sobhyt).trim().length > 20) {
+        return res.status(400).json({
+            success: false,
+            message: "Số thẻ BHYT không được vượt quá 20 ký tự!",
+        });
+    }
+
+    req.body.hoten = hoten.trim();
+    req.body.sdt = sdt.trim();
+    req.body.cccd = cccd ? String(cccd).trim() : null;
+    req.body.sobhyt = sobhyt ? String(sobhyt).trim() : null;
+
+    return next();
+}
+
 module.exports = {
+    validateCreatePatient,
     validateUpdateProfile,
     validateUpdateMedicalRecord,
     validateIdParam,

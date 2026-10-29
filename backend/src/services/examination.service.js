@@ -172,6 +172,18 @@ async function createExaminationService({ mabn, mabs, malh, trieuchung, chandoan
             error.statusCode = 400;
             throw error;
         }
+        if (!["DaXacNhan", "DaTiepDon"].includes(appointment.trangthai)) {
+            const error = new Error(
+                `Lịch hẹn #${malh} đang ở trạng thái ${appointment.trangthai}, không thể tạo phiếu khám!`,
+            );
+            error.statusCode = 400;
+            throw error;
+        }
+        if (user.vaitro === "BacSi" && appointment.mabs !== doctorId) {
+            const error = new Error("Bạn không phụ trách lịch hẹn này, không thể tạo phiếu khám!");
+            error.statusCode = 403;
+            throw error;
+        }
     }
 
     // Nếu có dịch vụ cận lâm sàng, kiểm tra tất cả madv có tồn tại
@@ -198,6 +210,7 @@ async function createExaminationService({ mabn, mabs, malh, trieuchung, chandoan
             data: {
                 mabn: Number(mabn),
                 mabs: doctorId,
+                malh: appointment ? appointment.malh : null,
                 trieuchung: trieuchung || null,
                 chandoan: chandoan || null,
                 ketluan: ketluan || null,
