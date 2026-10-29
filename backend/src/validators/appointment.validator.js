@@ -2,210 +2,205 @@
 // VALIDATOR: KIỂM TRA DỮ LIỆU ĐẦU VÀO PHÂN HỆ LỊCH HẸN KHÁM
 // ========================================================
 
-const { DATE_REGEX, TIME_REGEX } = require("../constants/shift.constant");
+const { TIME_REGEX } = require("../constants/shift.constant");
+const { ALL_APPOINTMENT_STATUSES } = require("../constants/appointment.constant");
+const { todayVN, isValidDateOnly } = require("../utils/date");
 
-// Kiểm tra mã ID lịch hẹn trên đường dẫn (:id)
-function validateAppointmentId(req, res, next) {
-    const id = Number(req.params.id);
-    if (!id || isNaN(id) || id <= 0 || !Number.isInteger(id)) {
-        return res.status(400).json({
-            success: false,
-            message: "Mã định danh lịch hẹn (:id) không hợp lệ, phải là số nguyên dương!",
-        });
-    }
-    next();
+function badRequest(res, message) {
+    return res.status(400).json({ success: false, message });
 }
 
-// Kiểm tra dữ liệu khi tạo lịch hẹn mới
+function validateAppointmentId(req, res, next) {
+    const id = Number(req.params.id);
+    if (!Number.isInteger(id) || id <= 0) {
+        return badRequest(res, "Mã định danh lịch hẹn (:id) không hợp lệ, phải là số nguyên dương!");
+    }
+    return next();
+}
+
 function validateCreateAppointment(req, res, next) {
     const { mabs, mabn, ngayhen, giohen, lydokham } = req.body;
 
-    // 1. Kiểm tra Bác sĩ
-    if (mabs === undefined || mabs === null || mabs === "") {
-        return res.status(400).json({
-            success: false,
-            message: "Vui lòng chọn bác sĩ khám bệnh (mabs)!",
-        });
-    }
     const doctorId = Number(mabs);
-    if (isNaN(doctorId) || doctorId <= 0 || !Number.isInteger(doctorId)) {
-        return res.status(400).json({
-            success: false,
-            message: "Mã bác sĩ (mabs) phải là số nguyên dương hợp lệ!",
-        });
+    if (!Number.isInteger(doctorId) || doctorId <= 0) {
+        return badRequest(res, "Vui lòng chọn bác sĩ khám bệnh (mabs) hợp lệ!");
     }
 
-    // 2. Nếu là Lễ tân/Admin đặt hộ, cần mabn
     if (["Admin", "LeTan"].includes(req.user?.vaitro)) {
-        if (mabn !== undefined && mabn !== null && mabn !== "") {
-            const patientId = Number(mabn);
-            if (isNaN(patientId) || patientId <= 0 || !Number.isInteger(patientId)) {
-                return res.status(400).json({
-                    success: false,
-                    message: "Mã bệnh nhân (mabn) được chỉ định phải là số nguyên dương!",
-                });
-            }
+        const patientId = Number(mabn);
+        if (!Number.isInteger(patientId) || patientId <= 0) {
+            return badRequest(res, "Lễ tân/Admin phải cung cấp mã bệnh nhân (mabn) hợp lệ!");
         }
     }
 
-    // 3. Kiểm tra Ngày hẹn
-    if (!ngayhen || typeof ngayhen !== "string" || !DATE_REGEX.test(ngayhen.trim())) {
-        return res.status(400).json({
-            success: false,
-            message: "Ngày hẹn khám không hợp lệ! Định dạng yêu cầu là YYYY-MM-DD (ví dụ: 2026-10-20).",
-        });
+    if (!isValidDateOnly(ngayhen)) {
+        return badRequest(res, "Ngày hẹn khám không hợp lệ! Định dạng yêu cầu là YYYY-MM-DD.");
+    }
+    if (ngayhen.trim() < todayVN()) {
+        return badRequest(res, "Ngày hẹn khám không được là ngày trong quá khứ!");
     }
 
-    const todayStr = new Date().toISOString().split("T")[0];
-    if (ngayhen.trim() < todayStr) {
-        return res.status(400).json({
-            success: false,
-            message: "Ngày hẹn khám không được là ngày trong quá khứ!",
-        });
+    if (typeof giohen !== "string" || !TIME_REGEX.test(giohen.trim())) {
+        return badRequest(res, "Giờ hẹn khám không hợp lệ! Định dạng yêu cầu là HH:mm.");
     }
 
-    // 4. Kiểm tra Giờ hẹn
-    if (!giohen || typeof giohen !== "string" || !TIME_REGEX.test(giohen.trim())) {
-        return res.status(400).json({
-            success: false,
-            message: "Giờ hẹn khám không hợp lệ! Định dạng yêu cầu là HH:mm (ví dụ: 08:30 hoặc 14:00).",
-        });
-    }
-
-    // 5. Kiểm tra Lý do khám (tùy chọn)
-    if (lydokham !== undefined && lydokham !== null && typeof lydokham === "string") {
-        if (lydokham.trim().length > 255) {
-            return res.status(400).json({
-                success: false,
-                message: "Lý do khám bệnh không được vượt quá 255 ký tự!",
-            });
+    if (lydokham !== undefined && lydokham !== null) {
+        if (typeof lydokham !== "string" || lydokham.trim().length > 255) {
+            return badRequest(res, "Lý do khám bệnh không được vượt quá 255 ký tự!");
         }
     }
 
-    next();
+    req.body.ngayhen = ngayhen.trim();
+    req.body.giohen = giohen.trim();
+    return next();
 }
 
-// Kiểm tra dữ liệu khi cập nhật trạng thái lịch hẹn
 function validateAppointmentStatus(req, res, next) {
-    const { trangthai, ghichu } = req.body;
-    const validStatuses = ["ChoXacNhan", "DaXacNhan", "DaKham", "DaHuy"];
+    const { trangthai, ghichu, lydohuy } = req.body || {};
 
-    if (!trangthai || !validStatuses.includes(trangthai)) {
-        return res.status(400).json({
-            success: false,
-            message: `Trạng thái lịch hẹn không hợp lệ! Chỉ chấp nhận: ${validStatuses.join(", ")}`,
-        });
+    if (!ALL_APPOINTMENT_STATUSES.includes(trangthai)) {
+        return badRequest(
+            res,
+            `Trạng thái lịch hẹn không hợp lệ! Chỉ chấp nhận: ${ALL_APPOINTMENT_STATUSES.join(", ")}`,
+        );
     }
 
-    if (ghichu !== undefined && ghichu !== null && typeof ghichu === "string") {
-        if (ghichu.trim().length > 255) {
-            return res.status(400).json({
-                success: false,
-                message: "Ghi chú không được vượt quá 255 ký tự!",
-            });
+    if (trangthai === "DaHuy" && !String(lydohuy || ghichu || "").trim()) {
+        return badRequest(res, "Vui lòng nhập lý do hủy lịch (lydohuy)!");
+    }
+
+    if (ghichu !== undefined && ghichu !== null) {
+        if (typeof ghichu !== "string" || ghichu.trim().length > 255) {
+            return badRequest(res, "Ghi chú không được vượt quá 255 ký tự!");
+        }
+    }
+    if (lydohuy !== undefined && lydohuy !== null) {
+        if (typeof lydohuy !== "string" || lydohuy.trim().length === 0 || lydohuy.trim().length > 255) {
+            return badRequest(res, "Lý do hủy phải có từ 1 đến 255 ký tự!");
         }
     }
 
-    next();
+    return next();
 }
 
-// Kiểm tra dữ liệu khi dời lịch hẹn / đổi bác sĩ
-function validateRescheduleAppointment(req, res, next) {
-    const { ngayhen, giohen, mabs } = req.body;
+function validateCancelAppointment(req, res, next) {
+    const body = req.body || {};
+    const reason = body.lydohuy || body.ghichu;
+    if (!String(reason || "").trim() || String(reason).trim().length > 255) {
+        return badRequest(res, "Vui lòng nhập lý do hủy lịch (tối đa 255 ký tự)!");
+    }
+    return next();
+}
 
-    if (!ngayhen && !giohen && !mabs) {
-        return res.status(400).json({
-            success: false,
-            message: "Vui lòng cung cấp ít nhất một thông tin cần thay đổi (ngayhen, giohen hoặc mabs)!",
-        });
+function validateRescheduleAppointment(req, res, next) {
+    const { ngayhen, giohen, mabs } = req.body || {};
+
+    if (ngayhen === undefined && giohen === undefined && mabs === undefined) {
+        return badRequest(res, "Vui lòng cung cấp ít nhất một thông tin cần thay đổi (ngayhen, giohen hoặc mabs)!");
     }
 
     if (ngayhen !== undefined) {
-        if (typeof ngayhen !== "string" || !DATE_REGEX.test(ngayhen.trim())) {
-            return res.status(400).json({
-                success: false,
-                message: "Ngày hẹn khám mới không hợp lệ (định dạng YYYY-MM-DD)!",
-            });
+        if (!isValidDateOnly(ngayhen)) {
+            return badRequest(res, "Ngày hẹn khám mới không hợp lệ (định dạng YYYY-MM-DD)!");
         }
-        const todayStr = new Date().toISOString().split("T")[0];
-        if (ngayhen.trim() < todayStr) {
-            return res.status(400).json({
-                success: false,
-                message: "Ngày hẹn khám mới không được là ngày trong quá khứ!",
-            });
+        if (ngayhen.trim() < todayVN()) {
+            return badRequest(res, "Ngày hẹn khám mới không được là ngày trong quá khứ!");
         }
+        req.body.ngayhen = ngayhen.trim();
     }
 
     if (giohen !== undefined) {
         if (typeof giohen !== "string" || !TIME_REGEX.test(giohen.trim())) {
-            return res.status(400).json({
-                success: false,
-                message: "Giờ hẹn khám mới không hợp lệ (định dạng HH:mm)!",
-            });
+            return badRequest(res, "Giờ hẹn khám mới không hợp lệ (định dạng HH:mm)!");
         }
+        req.body.giohen = giohen.trim();
     }
 
     if (mabs !== undefined) {
         const doctorId = Number(mabs);
-        if (isNaN(doctorId) || doctorId <= 0 || !Number.isInteger(doctorId)) {
-            return res.status(400).json({
-                success: false,
-                message: "Mã bác sĩ mới (mabs) phải là số nguyên dương hợp lệ!",
-            });
+        if (!Number.isInteger(doctorId) || doctorId <= 0) {
+            return badRequest(res, "Mã bác sĩ mới (mabs) phải là số nguyên dương hợp lệ!");
         }
     }
 
-    next();
+    return next();
 }
 
-// Kiểm tra query parameters khi lọc danh sách lịch hẹn
 function validateAppointmentQuery(req, res, next) {
     const { date, fromDate, toDate, doctorId, patientId, specialtyId, status, page, limit } = req.query;
 
-    if (date && !DATE_REGEX.test(date.trim())) {
-        return res.status(400).json({ success: false, message: "Tham số date không đúng định dạng YYYY-MM-DD!" });
+    if (date && !isValidDateOnly(date)) {
+        return badRequest(res, "Tham số date không đúng định dạng YYYY-MM-DD!");
     }
-    if (fromDate && !DATE_REGEX.test(fromDate.trim())) {
-        return res.status(400).json({ success: false, message: "Tham số fromDate không đúng định dạng YYYY-MM-DD!" });
+    if (fromDate && !isValidDateOnly(fromDate)) {
+        return badRequest(res, "Tham số fromDate không đúng định dạng YYYY-MM-DD!");
     }
-    if (toDate && !DATE_REGEX.test(toDate.trim())) {
-        return res.status(400).json({ success: false, message: "Tham số toDate không đúng định dạng YYYY-MM-DD!" });
+    if (toDate && !isValidDateOnly(toDate)) {
+        return badRequest(res, "Tham số toDate không đúng định dạng YYYY-MM-DD!");
     }
-
-    if (doctorId && (isNaN(Number(doctorId)) || Number(doctorId) <= 0)) {
-        return res.status(400).json({ success: false, message: "doctorId phải là số nguyên dương!" });
-    }
-    if (patientId && (isNaN(Number(patientId)) || Number(patientId) <= 0)) {
-        return res.status(400).json({ success: false, message: "patientId phải là số nguyên dương!" });
-    }
-    if (specialtyId && (isNaN(Number(specialtyId)) || Number(specialtyId) <= 0)) {
-        return res.status(400).json({ success: false, message: "specialtyId phải là số nguyên dương!" });
+    if (fromDate && toDate && fromDate.trim() > toDate.trim()) {
+        return badRequest(res, "fromDate không được lớn hơn toDate!");
     }
 
-    if (status) {
-        const validStatuses = ["ChoXacNhan", "DaXacNhan", "DaKham", "DaHuy"];
-        if (!validStatuses.includes(status)) {
-            return res.status(400).json({
-                success: false,
-                message: `Trạng thái lọc không hợp lệ! Chỉ chấp nhận: ${validStatuses.join(", ")}`,
-            });
+    for (const [name, value] of Object.entries({ doctorId, patientId, specialtyId })) {
+        if (value && (!Number.isInteger(Number(value)) || Number(value) <= 0)) {
+            return badRequest(res, `${name} phải là số nguyên dương!`);
         }
     }
 
-    if (page && (isNaN(Number(page)) || Number(page) <= 0)) {
-        return res.status(400).json({ success: false, message: "page phải là số nguyên dương!" });
-    }
-    if (limit && (isNaN(Number(limit)) || Number(limit) <= 0 || Number(limit) > 100)) {
-        return res.status(400).json({ success: false, message: "limit phải từ 1 đến 100!" });
+    if (status && !ALL_APPOINTMENT_STATUSES.includes(status)) {
+        return badRequest(
+            res,
+            `Trạng thái lọc không hợp lệ! Chỉ chấp nhận: ${ALL_APPOINTMENT_STATUSES.join(", ")}`,
+        );
     }
 
-    next();
+    if (page && (!Number.isInteger(Number(page)) || Number(page) <= 0)) {
+        return badRequest(res, "page phải là số nguyên dương!");
+    }
+    if (limit && (!Number.isInteger(Number(limit)) || Number(limit) <= 0 || Number(limit) > 100)) {
+        return badRequest(res, "limit phải từ 1 đến 100!");
+    }
+
+    return next();
+}
+
+function validateAvailableSlotsQuery(req, res, next) {
+    const { mabs, ngayhen } = req.query;
+
+    if (!Number.isInteger(Number(mabs)) || Number(mabs) <= 0) {
+        return badRequest(res, "Tham số mabs phải là số nguyên dương!");
+    }
+    if (!isValidDateOnly(ngayhen)) {
+        return badRequest(res, "Tham số ngayhen không đúng định dạng YYYY-MM-DD!");
+    }
+    if (ngayhen.trim() < todayVN()) {
+        return badRequest(res, "Không thể xem khung giờ trống của ngày trong quá khứ!");
+    }
+
+    return next();
+}
+
+function validateQueueQuery(req, res, next) {
+    const { date, mabs } = req.query;
+
+    if (date && !isValidDateOnly(date)) {
+        return badRequest(res, "Tham số date không đúng định dạng YYYY-MM-DD!");
+    }
+    if (mabs && (!Number.isInteger(Number(mabs)) || Number(mabs) <= 0)) {
+        return badRequest(res, "Tham số mabs phải là số nguyên dương!");
+    }
+
+    return next();
 }
 
 module.exports = {
     validateAppointmentId,
     validateCreateAppointment,
     validateAppointmentStatus,
+    validateCancelAppointment,
     validateRescheduleAppointment,
     validateAppointmentQuery,
+    validateAvailableSlotsQuery,
+    validateQueueQuery,
 };

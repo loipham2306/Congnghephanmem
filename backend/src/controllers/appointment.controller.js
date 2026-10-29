@@ -4,15 +4,17 @@
 
 const {
     createAppointmentService,
+    getAvailableSlotsService,
     getMyAppointmentsService,
     getAllAppointmentsService,
     getAppointmentByIdService,
     updateAppointmentStatusService,
     rescheduleAppointmentService,
     cancelAppointmentService,
+    checkInAppointmentService,
+    getQueueService,
 } = require("../services/appointment.service");
 
-// 1. Đặt lịch khám bệnh mới
 async function createAppointmentController(req, res, next) {
     try {
         const appointment = await createAppointmentService(req.user, req.body);
@@ -26,7 +28,19 @@ async function createAppointmentController(req, res, next) {
     }
 }
 
-// 2. Bệnh nhân xem lịch hẹn của chính mình
+async function getAvailableSlotsController(req, res, next) {
+    try {
+        const result = await getAvailableSlotsService(req.query);
+        return res.status(200).json({
+            success: true,
+            message: "Lấy danh sách khung giờ còn trống thành công!",
+            data: result,
+        });
+    } catch (error) {
+        return next(error);
+    }
+}
+
 async function getMyAppointmentsController(req, res, next) {
     try {
         const appointments = await getMyAppointmentsService(req.user.matk, req.query);
@@ -40,7 +54,6 @@ async function getMyAppointmentsController(req, res, next) {
     }
 }
 
-// 3. Nhân viên y tế & Admin: Lấy danh sách toàn bộ lịch hẹn
 async function getAllAppointmentsController(req, res, next) {
     try {
         const result = await getAllAppointmentsService(req.query);
@@ -54,7 +67,6 @@ async function getAllAppointmentsController(req, res, next) {
     }
 }
 
-// 4. Xem chi tiết một lịch hẹn
 async function getAppointmentByIdController(req, res, next) {
     try {
         const appointment = await getAppointmentByIdService(req.params.id, req.user);
@@ -68,13 +80,12 @@ async function getAppointmentByIdController(req, res, next) {
     }
 }
 
-// 5. Cập nhật trạng thái lịch hẹn (Duyệt, Hủy, Đã khám)
 async function updateAppointmentStatusController(req, res, next) {
     try {
         const appointment = await updateAppointmentStatusService(
             req.params.id,
             req.body,
-            req.user
+            req.user,
         );
         return res.status(200).json({
             success: true,
@@ -86,13 +97,12 @@ async function updateAppointmentStatusController(req, res, next) {
     }
 }
 
-// 6. Dời ngày giờ khám / đổi bác sĩ
 async function rescheduleAppointmentController(req, res, next) {
     try {
         const appointment = await rescheduleAppointmentService(
             req.params.id,
             req.body,
-            req.user
+            req.user,
         );
         return res.status(200).json({
             success: true,
@@ -104,10 +114,14 @@ async function rescheduleAppointmentController(req, res, next) {
     }
 }
 
-// 7. Hủy lịch hẹn
 async function cancelAppointmentController(req, res, next) {
     try {
-        const appointment = await cancelAppointmentService(req.params.id, req.user);
+        const body = req.body || {};
+        const appointment = await cancelAppointmentService(
+            req.params.id,
+            req.user,
+            body.lydohuy || body.ghichu,
+        );
         return res.status(200).json({
             success: true,
             message: "Đã hủy lịch hẹn khám thành công!",
@@ -118,12 +132,41 @@ async function cancelAppointmentController(req, res, next) {
     }
 }
 
+async function checkInAppointmentController(req, res, next) {
+    try {
+        const appointment = await checkInAppointmentService(req.params.id, req.user);
+        return res.status(200).json({
+            success: true,
+            message: `Đã tiếp đón bệnh nhân, số thứ tự: ${appointment.sohangcho}`,
+            data: appointment,
+        });
+    } catch (error) {
+        return next(error);
+    }
+}
+
+async function getQueueController(req, res, next) {
+    try {
+        const result = await getQueueService(req.query);
+        return res.status(200).json({
+            success: true,
+            message: "Lấy hàng chờ khám thành công!",
+            data: result,
+        });
+    } catch (error) {
+        return next(error);
+    }
+}
+
 module.exports = {
     createAppointmentController,
+    getAvailableSlotsController,
     getMyAppointmentsController,
     getAllAppointmentsController,
     getAppointmentByIdController,
     updateAppointmentStatusController,
     rescheduleAppointmentController,
     cancelAppointmentController,
+    checkInAppointmentController,
+    getQueueController,
 };

@@ -8,34 +8,57 @@ const {
     getTimeInMinutes,
     formatTime,
 } = require("../constants/shift.constant");
+const {
+    APPOINTMENT_STATUS,
+    SLOT_HOLDING_STATUSES,
+    canTransition,
+    canRoleSetStatus,
+} = require("../constants/appointment.constant");
+const { SLOT_MINUTES, MAX_ADVANCE_DAYS, MIN_LEAD_MINUTES } = require("../constants/slot.constant");
+const {
+    todayVN,
+    addDaysVN,
+    parseDateOnly,
+    isValidDateOnly,
+    isPastDateTimeVN,
+    nowTimeVN,
+} = require("../utils/date");
+const { isAlignedToSlot, generateSlots } = require("../utils/slot");
+const { writeAudit } = require("../utils/audit");
 
-// Định dạng đối tượng lịch hẹn trả về cho client
+function httpError(statusCode, message) {
+    const error = new Error(message);
+    error.statusCode = statusCode;
+    return error;
+}
+
+function formatDateOnly(value) {
+    return value instanceof Date ? value.toISOString().slice(0, 10) : value;
+}
+
 function formatAppointmentResponse(apt) {
     if (!apt) return null;
-
-    const formattedDate = apt.ngayhen instanceof Date
-        ? apt.ngayhen.toISOString().split("T")[0]
-        : apt.ngayhen;
 
     return {
         malh: apt.malh,
         mabn: apt.mabn,
         mabs: apt.mabs,
-        ngayhen: formattedDate,
+        ngayhen: formatDateOnly(apt.ngayhen),
         giohen: formatTime(apt.giohen),
         trangthai: apt.trangthai,
         lydokham: apt.lydokham,
+        lydohuy: apt.lydohuy || null,
+        thoigianhuy: apt.thoigianhuy || null,
+        thoigiantiepdon: apt.thoigiantiepdon || null,
+        sohangcho: apt.sohangcho ?? null,
+        malsk: apt.lichsukham?.malsk || null,
         benhnhan: apt.benhnhan
             ? {
                 mabn: apt.benhnhan.mabn,
                 hoten: apt.benhnhan.hoten,
                 sdt: apt.benhnhan.sdt,
                 gioitinh: apt.benhnhan.gioitinh,
-                ngaysinh: apt.benhnhan.ngaysinh
-                    ? (apt.benhnhan.ngaysinh instanceof Date
-                        ? apt.benhnhan.ngaysinh.toISOString().split("T")[0]
-                        : apt.benhnhan.ngaysinh)
-                    : null,
+                ngaysinh: formatDateOnly(apt.benhnhan.ngaysinh),
                 cccd: apt.benhnhan.cccd,
                 sobhyt: apt.benhnhan.sobhyt,
             }
@@ -63,49 +86,159 @@ function formatAppointmentResponse(apt) {
     };
 }
 
+function appointmentInclude() {
+    return {
+        benhnhan: true,
+        lichsukham: { select: { malsk: true } },
+        bacsi: {
+            include: {
+                nhanvien: true,
+                chuyenkhoa: true,
+            },
+        },
+    };
+}
+
+async function getPatientByAccount(matk) {
+    const patient = await prisma.benhnhan.findUnique({
+        where: { matk: Number(matk) },
+        select: { mabn: true, hoten: true },
+    });
+    if (!patient) {
+        throw httpError(404, "Tài khoản của bạn chưa có hồ sơ bệnh nhân! Vui lòng cập nhật hồ sơ trước.");
+    }
+    return patient;
+}
+
+function assertAppointmentOwnership(appointment, patient) {
+    if (!patient || appointment.mabn !== patient.mabn) {
+        throw httpError(403, "Bạn không có quyền thao tác trên lịch hẹn này!");
+    }
+}
+
+function validateBookingDate(dateStr) {
+    const normalized = String(dateStr || "").trim();
+    if (!isValidDateOnly(normalized)) {
+        throw httpError(400, "Ngày hẹn không hợp lệ, định dạng yêu cầu là YYYY-MM-DD");
+    }
+
+    const today = todayVN();
+    if (normalized < today) {
+        throw httpError(400, "Không thể đặt lịch cho ngày trong quá khứ");
+    }
+    if (normalized > addDaysVN(today, MAX_ADVANCE_DAYS)) {
+        throw httpError(400, `Chỉ được đặt lịch trước tối đa ${MAX_ADVANCE_DAYS} ngày`);
+    }
+    return parseDateOnly(normalized);
+}
+
+function validateBookingTime(dateStr, timeStr) {
+    if (!isAlignedToSlot(timeStr, SLOT_MINUTES)) {
+        throw httpError(400, `Giờ hẹn phải là bội số của ${SLOT_MINUTES} phút (ví dụ 08:00, 08:30)`);
+    }
+    if (isPastDateTimeVN(dateStr, timeStr)) {
+        throw httpError(400, "Không thể đặt lịch cho thời điểm đã qua");
+    }
+    if (dateStr === todayVN()) {
+        const nowMinutes = nowTimeVN().minutes;
+        const targetMinutes = getTimeInMinutes(timeStr);
+        if (targetMinutes < nowMinutes + MIN_LEAD_MINUTES) {
+            throw httpError(400, `Vui lòng đặt lịch trước ít nhất ${MIN_LEAD_MINUTES} phút`);
+        }
+    }
+}
+
+async function getDoctorShiftOrThrow(doctorId, date, dateStr) {
+    const shifts = await prisma.phanconglamviec.findMany({
+        where: {
+            manv: Number(doctorId),
+            calamviec: { ngay: date },
+        },
+        include: { calamviec: true },
+    });
+
+    if (shifts.length === 0) {
+        throw httpError(400, `Bác sĩ không có lịch trực vào ngày ${dateStr}`);
+    }
+    return shifts;
+}
+
+function assertWithinShift(timeStr, shifts) {
+    const minutes = getTimeInMinutes(timeStr);
+    const isWithin = shifts.some((assignment) => {
+        const start = getTimeInMinutes(assignment.calamviec.giobatdau);
+        const end = getTimeInMinutes(assignment.calamviec.gioketthuc);
+        // Khung giờ phải nằm trọn trong ca, kể cả thời lượng slot.
+        return minutes >= start && minutes + SLOT_MINUTES <= end;
+    });
+
+    if (!isWithin) {
+        const shiftText = shifts
+            .map((item) => `${formatTime(item.calamviec.giobatdau)} - ${formatTime(item.calamviec.gioketthuc)}`)
+            .join(", ");
+        throw httpError(400, `Giờ hẹn ${timeStr} không nằm trong ca trực của bác sĩ (${shiftText})`);
+    }
+}
+
+async function assertNoSlotConflict({ mabs, mabn, ngayhen, giohen, excludeId = null }) {
+    const whereBase = {
+        ngayhen,
+        giohen,
+        trangthai: { in: SLOT_HOLDING_STATUSES },
+    };
+    if (excludeId) whereBase.malh = { not: Number(excludeId) };
+
+    const [doctorConflict, patientConflict] = await Promise.all([
+        prisma.lichhen.findFirst({
+            where: { ...whereBase, mabs: Number(mabs) },
+        }),
+        prisma.lichhen.findFirst({
+            where: { ...whereBase, mabn: Number(mabn) },
+        }),
+    ]);
+
+    if (doctorConflict) {
+        throw httpError(409, "Khung giờ này của bác sĩ đã được đặt trước, vui lòng chọn khung giờ khác");
+    }
+    if (patientConflict) {
+        throw httpError(409, "Bệnh nhân đã có lịch hẹn trong khung giờ này");
+    }
+}
+
+function normalizeSlotConflictError(error) {
+    if (error?.code === "P2002") {
+        return httpError(409, "Khung giờ này vừa được người khác đặt, vui lòng chọn khung giờ khác");
+    }
+    return error;
+}
+
 /**
- * 1. Đặt lịch khám bệnh mới (Có thuật toán kiểm tra ca trực & chống trùng khung giờ)
+ * 1. Đặt lịch khám mới
  */
 async function createAppointmentService(user, data) {
     const { mabs, ngayhen, giohen, lydokham } = data;
     const doctorId = Number(mabs);
+    const dateStr = String(ngayhen).trim();
+    const timeStr = String(giohen).trim();
 
-    // 1. Xác định mã bệnh nhân (mabn)
-    let patientId;
+    let patient;
     if (user.vaitro === "BenhNhan") {
-        const patient = await prisma.benhnhan.findUnique({
-            where: { matk: Number(user.matk) },
+        patient = await getPatientByAccount(user.matk);
+    } else if (["Admin", "LeTan"].includes(user.vaitro)) {
+        if (!data.mabn) {
+            throw httpError(400, "Vui lòng chọn bệnh nhân (mabn) khi đặt lịch tại quầy");
+        }
+        patient = await prisma.benhnhan.findUnique({
+            where: { mabn: Number(data.mabn) },
             select: { mabn: true, hoten: true },
         });
         if (!patient) {
-            const error = new Error("Tài khoản của bạn chưa có hồ sơ bệnh nhân! Vui lòng cập nhật hồ sơ trước.");
-            error.statusCode = 404;
-            throw error;
+            throw httpError(404, `Không tìm thấy bệnh nhân với mã ID: ${data.mabn}`);
         }
-        patientId = patient.mabn;
-    } else if (["Admin", "LeTan"].includes(user.vaitro)) {
-        if (!data.mabn) {
-            const error = new Error("Vui lòng chọn hoặc cung cấp mã bệnh nhân (mabn) khi đặt lịch tại quầy!");
-            error.statusCode = 400;
-            throw error;
-        }
-        const patient = await prisma.benhnhan.findUnique({
-            where: { mabn: Number(data.mabn) },
-            select: { mabn: true },
-        });
-        if (!patient) {
-            const error = new Error(`Không tìm thấy bệnh nhân với mã ID: ${data.mabn}`);
-            error.statusCode = 404;
-            throw error;
-        }
-        patientId = patient.mabn;
     } else {
-        const error = new Error("Vai trò tài khoản không có quyền đặt lịch khám!");
-        error.statusCode = 403;
-        throw error;
+        throw httpError(403, "Vai trò tài khoản không có quyền đặt lịch khám");
     }
 
-    // 2. Kiểm tra Bác sĩ có tồn tại không
     const doctor = await prisma.bacsi.findUnique({
         where: { mabs: doctorId },
         include: {
@@ -114,115 +247,56 @@ async function createAppointmentService(user, data) {
         },
     });
     if (!doctor) {
-        const error = new Error(`Không tìm thấy bác sĩ với mã ID: ${doctorId}`);
-        error.statusCode = 404;
-        throw error;
+        throw httpError(404, `Không tìm thấy bác sĩ với mã ID: ${doctorId}`);
     }
 
-    const appointmentDate = new Date(ngayhen.trim());
-    const appointmentTimeDate = parseTimeToDate(giohen.trim());
-    const appointmentMinutes = getTimeInMinutes(appointmentTimeDate);
+    const appointmentDate = validateBookingDate(dateStr);
+    validateBookingTime(dateStr, timeStr);
+    const appointmentTime = parseTimeToDate(timeStr);
+    if (!appointmentTime) {
+        throw httpError(400, "Giờ hẹn không hợp lệ");
+    }
 
-    // 3. Kiểm tra ca làm việc / phân công trực của bác sĩ trong ngày
-    const doctorShifts = await prisma.phanconglamviec.findMany({
-        where: {
-            manv: doctorId,
-            calamviec: {
-                ngay: appointmentDate,
-            },
-        },
-        include: {
-            calamviec: true,
-        },
+    const shifts = await getDoctorShiftOrThrow(doctorId, appointmentDate, dateStr);
+    assertWithinShift(timeStr, shifts);
+    await assertNoSlotConflict({
+        mabs: doctorId,
+        mabn: patient.mabn,
+        ngayhen: appointmentDate,
+        giohen: appointmentTime,
     });
 
-    if (doctorShifts.length === 0) {
-        const error = new Error(
-            `Bác sĩ ${doctor.nhanvien?.hoten} không có lịch trực vào ngày ${ngayhen}! Vui lòng tham khảo lịch làm việc của bác sĩ để chọn ngày khác.`
-        );
-        error.statusCode = 400;
-        throw error;
-    }
+    const initialStatus = ["Admin", "LeTan"].includes(user.vaitro)
+        ? APPOINTMENT_STATUS.DA_XAC_NHAN
+        : APPOINTMENT_STATUS.CHO_XAC_NHAN;
 
-    // Kiểm tra giờ hẹn có nằm trong khung giờ của bất kỳ ca trực nào của bác sĩ không
-    const isWithinShift = doctorShifts.some((ps) => {
-        const shiftStart = getTimeInMinutes(ps.calamviec.giobatdau);
-        const shiftEnd = getTimeInMinutes(ps.calamviec.gioketthuc);
-        return appointmentMinutes >= shiftStart && appointmentMinutes < shiftEnd;
-    });
-
-    if (!isWithinShift) {
-        const shiftTimeStrs = doctorShifts.map((ps) =>
-            `${formatTime(ps.calamviec.giobatdau)} - ${formatTime(ps.calamviec.gioketthuc)}`
-        ).join(", ");
-        const error = new Error(
-            `Giờ hẹn ${giohen} không nằm trong khung giờ làm việc của Bác sĩ ${doctor.nhanvien?.hoten} vào ngày ${ngayhen} (Các ca trực trong ngày: ${shiftTimeStrs})!`
-        );
-        error.statusCode = 400;
-        throw error;
-    }
-
-    // 4. THUẬT TOÁN CHỐNG TRÙNG KHUNG GIỜ (SLOT CONFLICT DETECTION)
-    // 4.1. Chống trùng lịch Bác sĩ: Bác sĩ đã có lịch hẹn ở cùng khung giờ (mỗi slot tương đương 30 phút)
-    const existingDoctorApt = await prisma.lichhen.findFirst({
-        where: {
-            mabs: doctorId,
-            ngayhen: appointmentDate,
-            giohen: appointmentTimeDate,
-            trangthai: {
-                in: ["ChoXacNhan", "DaXacNhan"],
+    let newAppointment;
+    try {
+        newAppointment = await prisma.lichhen.create({
+            data: {
+                mabn: patient.mabn,
+                mabs: doctorId,
+                ngayhen: appointmentDate,
+                giohen: appointmentTime,
+                trangthai: initialStatus,
+                lydokham: lydokham ? lydokham.trim() : null,
             },
-        },
-    });
-
-    if (existingDoctorApt) {
-        const error = new Error(
-            `Khung giờ ${giohen} ngày ${ngayhen} của Bác sĩ ${doctor.nhanvien?.hoten} đã được đặt hẹn trước! Vui lòng chọn khung giờ khác (ví dụ: cách 30 phút).`
-        );
-        error.statusCode = 409;
-        throw error;
+            include: appointmentInclude(),
+        });
+    } catch (error) {
+        throw normalizeSlotConflictError(error);
     }
 
-    // 4.2. Chống trùng lịch Bệnh nhân: Bệnh nhân không thể đặt 2 lịch hẹn trùng khung giờ
-    const existingPatientApt = await prisma.lichhen.findFirst({
-        where: {
-            mabn: patientId,
-            ngayhen: appointmentDate,
-            giohen: appointmentTimeDate,
-            trangthai: {
-                in: ["ChoXacNhan", "DaXacNhan"],
-            },
-        },
-    });
-
-    if (existingPatientApt) {
-        const error = new Error(
-            `Bạn đã có một lịch hẹn khám bệnh trong khung giờ ${giohen} ngày ${ngayhen}!`
-        );
-        error.statusCode = 409;
-        throw error;
-    }
-
-    // 5. Tạo lịch hẹn vào cơ sở dữ liệu
-    const initialStatus = ["Admin", "LeTan"].includes(user.vaitro) ? "DaXacNhan" : "ChoXacNhan";
-
-    const newAppointment = await prisma.lichhen.create({
-        data: {
-            mabn: patientId,
-            mabs: doctorId,
-            ngayhen: appointmentDate,
-            giohen: appointmentTimeDate,
-            trangthai: initialStatus,
-            lydokham: lydokham ? lydokham.trim() : null,
-        },
-        include: {
-            benhnhan: true,
-            bacsi: {
-                include: {
-                    nhanvien: true,
-                    chuyenkhoa: true,
-                },
-            },
+    await writeAudit({
+        matk: user.matk,
+        hanhdong: "DAT_LICH",
+        doituong: "lichhen",
+        doituongId: newAppointment.malh,
+        sau: {
+            mabn: newAppointment.mabn,
+            mabs: newAppointment.mabs,
+            ngayhen: dateStr,
+            giohen: timeStr,
         },
     });
 
@@ -230,38 +304,81 @@ async function createAppointmentService(user, data) {
 }
 
 /**
- * 2. Bệnh nhân xem danh sách lịch hẹn của chính mình
+ * 1b. Danh sách khung giờ còn trống của bác sĩ
+ */
+async function getAvailableSlotsService({ mabs, ngayhen }) {
+    const doctorId = Number(mabs);
+    const dateStr = String(ngayhen).trim();
+    const date = validateBookingDate(dateStr);
+    const today = todayVN();
+
+    if (dateStr === today) {
+        // Vẫn trả các slot đã qua nhưng đánh dấu không khả dụng.
+    }
+
+    const doctor = await prisma.bacsi.findUnique({
+        where: { mabs: doctorId },
+        select: { mabs: true },
+    });
+    if (!doctor) {
+        throw httpError(404, `Không tìm thấy bác sĩ với mã ID: ${doctorId}`);
+    }
+
+    const shifts = await getDoctorShiftOrThrow(doctorId, date, dateStr);
+    const booked = await prisma.lichhen.findMany({
+        where: {
+            mabs: doctorId,
+            ngayhen: date,
+            trangthai: { in: SLOT_HOLDING_STATUSES },
+        },
+        select: { giohen: true },
+    });
+    const bookedTimes = new Set(booked.map((item) => formatTime(item.giohen)));
+    const nowMinutes = nowTimeVN().minutes;
+
+    const slots = [];
+    for (const shift of shifts) {
+        const shiftSlots = generateSlots(
+            shift.calamviec.giobatdau,
+            shift.calamviec.gioketthuc,
+            SLOT_MINUTES,
+        );
+
+        for (const slot of shiftSlots) {
+            if (slots.some((item) => item.giohen === slot)) continue;
+
+            const isPast = dateStr < today
+                || (dateStr === today && getTimeInMinutes(slot) < nowMinutes + MIN_LEAD_MINUTES);
+            slots.push({
+                giohen: slot,
+                conlai: !isPast && !bookedTimes.has(slot),
+                daky: bookedTimes.has(slot),
+            });
+        }
+    }
+
+    slots.sort((a, b) => a.giohen.localeCompare(b.giohen));
+
+    return {
+        mabs: doctorId,
+        ngayhen: dateStr,
+        slotMinutes: SLOT_MINUTES,
+        slots,
+    };
+}
+
+/**
+ * 2. Bệnh nhân xem lịch hẹn của chính mình
  */
 async function getMyAppointmentsService(matk, query = {}) {
-    const patient = await prisma.benhnhan.findUnique({
-        where: { matk: Number(matk) },
-        select: { mabn: true },
-    });
+    const patient = await getPatientByAccount(matk);
 
-    if (!patient) {
-        const error = new Error("Tài khoản của bạn chưa có hồ sơ bệnh nhân!");
-        error.statusCode = 404;
-        throw error;
-    }
-
-    const where = {
-        mabn: patient.mabn,
-    };
-
-    if (query.status) {
-        where.trangthai = query.status;
-    }
+    const where = { mabn: patient.mabn };
+    if (query.status) where.trangthai = query.status;
 
     const appointments = await prisma.lichhen.findMany({
         where,
-        include: {
-            bacsi: {
-                include: {
-                    nhanvien: true,
-                    chuyenkhoa: true,
-                },
-            },
-        },
+        include: appointmentInclude(),
         orderBy: [
             { ngayhen: "desc" },
             { giohen: "asc" },
@@ -272,68 +389,58 @@ async function getMyAppointmentsService(matk, query = {}) {
 }
 
 /**
- * 3. Lễ tân / Bác sĩ / Admin: Lấy danh sách lịch hẹn (Bộ lọc đa năng & Phân trang)
+ * 3. Lễ tân / Bác sĩ / Admin: danh sách lịch hẹn
  */
 async function getAllAppointmentsService(query = {}) {
-    const { date, fromDate, toDate, doctorId, patientId, specialtyId, status, search, page = 1, limit = 10 } = query;
+    const {
+        date,
+        fromDate,
+        toDate,
+        doctorId,
+        patientId,
+        specialtyId,
+        status,
+        search,
+        page = 1,
+        limit = 10,
+    } = query;
 
-    const pageNum = Number(page) || 1;
-    const limitNum = Number(limit) || 10;
-    const skip = (pageNum - 1) * limitNum;
-
+    const pageNum = Math.max(1, Number(page) || 1);
+    const limitNum = Math.min(100, Math.max(1, Number(limit) || 10));
     const where = {};
 
     if (date) {
-        where.ngayhen = new Date(date.trim());
+        where.ngayhen = parseDateOnly(date.trim());
     } else if (fromDate || toDate) {
         where.ngayhen = {};
-        if (fromDate) where.ngayhen.gte = new Date(fromDate.trim());
-        if (toDate) where.ngayhen.lte = new Date(toDate.trim());
+        if (fromDate) where.ngayhen.gte = parseDateOnly(fromDate.trim());
+        if (toDate) where.ngayhen.lte = parseDateOnly(toDate.trim());
     }
 
-    if (doctorId) {
-        where.mabs = Number(doctorId);
-    }
-
-    if (patientId) {
-        where.mabn = Number(patientId);
-    }
-
-    if (status) {
-        where.trangthai = status;
-    }
-
-    if (specialtyId) {
-        where.bacsi = {
-            mack: Number(specialtyId),
-        };
-    }
+    if (doctorId) where.mabs = Number(doctorId);
+    if (patientId) where.mabn = Number(patientId);
+    if (status) where.trangthai = status;
+    if (specialtyId) where.bacsi = { is: { mack: Number(specialtyId) } };
 
     if (search && search.trim() !== "") {
         const keyword = search.trim();
         where.benhnhan = {
-            OR: [
-                { hoten: { contains: keyword, mode: "insensitive" } },
-                { sdt: { contains: keyword } },
-                { cccd: { contains: keyword } },
-            ],
+            is: {
+                OR: [
+                    { hoten: { contains: keyword, mode: "insensitive" } },
+                    { sdt: { contains: keyword } },
+                    { cccd: { contains: keyword } },
+                ],
+            },
         };
     }
 
     const [appointments, total] = await Promise.all([
         prisma.lichhen.findMany({
             where,
-            skip,
+            skip: (pageNum - 1) * limitNum,
             take: limitNum,
-            include: {
-                benhnhan: true,
-                bacsi: {
-                    include: {
-                        nhanvien: true,
-                        chuyenkhoa: true,
-                    },
-                },
-            },
+            include: appointmentInclude(),
             orderBy: [
                 { ngayhen: "asc" },
                 { giohen: "asc" },
@@ -358,229 +465,300 @@ async function getAllAppointmentsService(query = {}) {
  */
 async function getAppointmentByIdService(id, user) {
     const appointmentId = Number(id);
-
     const appointment = await prisma.lichhen.findUnique({
         where: { malh: appointmentId },
-        include: {
-            benhnhan: true,
-            bacsi: {
-                include: {
-                    nhanvien: true,
-                    chuyenkhoa: true,
-                },
-            },
-        },
+        include: appointmentInclude(),
     });
 
     if (!appointment) {
-        const error = new Error(`Không tìm thấy lịch hẹn với mã ID: ${appointmentId}`);
-        error.statusCode = 404;
-        throw error;
+        throw httpError(404, `Không tìm thấy lịch hẹn với mã ID: ${appointmentId}`);
     }
 
-    // Nếu là Bệnh nhân, chỉ cho phép xem lịch hẹn của chính mình
     if (user.vaitro === "BenhNhan") {
-        const patient = await prisma.benhnhan.findUnique({
-            where: { matk: Number(user.matk) },
-            select: { mabn: true },
-        });
-        if (!patient || appointment.mabn !== patient.mabn) {
-            const error = new Error("Bạn không có quyền truy cập thông tin lịch hẹn này!");
-            error.statusCode = 403;
-            throw error;
-        }
+        const patient = await getPatientByAccount(user.matk);
+        assertAppointmentOwnership(appointment, patient);
     }
 
     return formatAppointmentResponse(appointment);
 }
 
-/**
- * 5. Cập nhật trạng thái lịch hẹn (Lễ tân duyệt, Hủy, hoặc Bác sĩ kết thúc khám)
- */
-async function updateAppointmentStatusService(id, { trangthai, ghichu }, user) {
-    const appointmentId = Number(id);
+async function assignQueueNumber(tx, appointment) {
+    if (appointment.sohangcho) return appointment.sohangcho;
 
+    const aggregate = await tx.lichhen.aggregate({
+        where: {
+            ngayhen: appointment.ngayhen,
+            mabs: appointment.mabs,
+            sohangcho: { not: null },
+        },
+        _max: { sohangcho: true },
+    });
+
+    return (aggregate._max.sohangcho || 0) + 1;
+}
+
+/**
+ * 5. Cập nhật trạng thái lịch hẹn theo state machine
+ */
+async function updateAppointmentStatusService(id, { trangthai, ghichu, lydohuy }, user) {
+    const appointmentId = Number(id);
     const appointment = await prisma.lichhen.findUnique({
         where: { malh: appointmentId },
         include: { benhnhan: true },
     });
 
     if (!appointment) {
-        const error = new Error(`Không tìm thấy lịch hẹn với mã ID: ${appointmentId}`);
-        error.statusCode = 404;
-        throw error;
+        throw httpError(404, `Không tìm thấy lịch hẹn với mã ID: ${appointmentId}`);
     }
 
-    // Phân quyền chuyển đổi trạng thái
+    if (!canRoleSetStatus(user.vaitro, trangthai)) {
+        throw httpError(403, "Bạn không có quyền đặt trạng thái này cho lịch hẹn");
+    }
+
     if (user.vaitro === "BenhNhan") {
-        const patient = await prisma.benhnhan.findUnique({
-            where: { matk: Number(user.matk) },
-            select: { mabn: true },
-        });
-        if (!patient || appointment.mabn !== patient.mabn) {
-            const error = new Error("Bạn không có quyền thao tác trên lịch hẹn này!");
-            error.statusCode = 403;
-            throw error;
-        }
-        // Bệnh nhân chỉ được phép Hủy lịch hẹn khi đang ở trạng thái ChoXacNhan hoặc DaXacNhan
-        if (trangthai !== "DaHuy") {
-            const error = new Error("Bệnh nhân chỉ có quyền yêu cầu hủy lịch hẹn (DaHuy)!");
-            error.statusCode = 403;
-            throw error;
-        }
-        if (appointment.trangthai === "DaKham") {
-            const error = new Error("Lịch hẹn đã được bác sĩ khám xong, không thể hủy!");
-            error.statusCode = 400;
-            throw error;
-        }
+        const patient = await getPatientByAccount(user.matk);
+        assertAppointmentOwnership(appointment, patient);
     }
 
-    const updatedAppointment = await prisma.lichhen.update({
-        where: { malh: appointmentId },
-        data: {
-            trangthai,
-            ...(ghichu && { lydokham: `${appointment.lydokham || ""} [Ghi chú: ${ghichu}]`.trim() }),
-        },
-        include: {
-            benhnhan: true,
-            bacsi: {
-                include: {
-                    nhanvien: true,
-                    chuyenkhoa: true,
+    if (!canTransition(appointment.trangthai, trangthai)) {
+        throw httpError(
+            400,
+            `Không thể chuyển trạng thái từ ${appointment.trangthai} sang ${trangthai}`,
+        );
+    }
+
+    const cancelReason = lydohuy || ghichu;
+    if (trangthai === APPOINTMENT_STATUS.DA_HUY && !cancelReason?.trim()) {
+        throw httpError(400, "Vui lòng nhập lý do hủy lịch (lydohuy)");
+    }
+
+    const data = { trangthai };
+
+    if (trangthai === APPOINTMENT_STATUS.DA_HUY) {
+        data.lydohuy = cancelReason.trim().slice(0, 255);
+        data.thoigianhuy = new Date();
+    }
+    if (ghichu?.trim()) {
+        data.lydokham = `${appointment.lydokham || ""} [Ghi chú: ${ghichu.trim()}]`.trim();
+    }
+
+    let updated;
+    if (trangthai === APPOINTMENT_STATUS.DA_TIEP_DON) {
+        updated = await prisma.$transaction(async (tx) => {
+            const queueNumber = await assignQueueNumber(tx, appointment);
+            return tx.lichhen.update({
+                where: { malh: appointmentId },
+                data: {
+                    ...data,
+                    sohangcho: queueNumber,
+                    thoigiantiepdon: new Date(),
                 },
-            },
-        },
-    });
-
-    return formatAppointmentResponse(updatedAppointment);
-}
-
-/**
- * 6. Dời ngày/giờ khám hoặc đổi Bác sĩ (Reschedule)
- */
-async function rescheduleAppointmentService(id, { ngayhen, giohen, mabs }, user) {
-    const appointmentId = Number(id);
-
-    const appointment = await prisma.lichhen.findUnique({
-        where: { malh: appointmentId },
-        include: { benhnhan: true, bacsi: true },
-    });
-
-    if (!appointment) {
-        const error = new Error(`Không tìm thấy lịch hẹn với mã ID: ${appointmentId}`);
-        error.statusCode = 404;
-        throw error;
-    }
-
-    if (appointment.trangthai === "DaKham") {
-        const error = new Error("Lịch hẹn này đã hoàn tất khám bệnh, không thể dời lịch!");
-        error.statusCode = 400;
-        throw error;
-    }
-    if (appointment.trangthai === "DaHuy") {
-        const error = new Error("Lịch hẹn này đã bị hủy, vui lòng tạo lịch hẹn mới!");
-        error.statusCode = 400;
-        throw error;
-    }
-
-    // Quyền thao tác: Bệnh nhân sở hữu lịch hoặc Nhân viên y tế
-    if (user.vaitro === "BenhNhan") {
-        const patient = await prisma.benhnhan.findUnique({
-            where: { matk: Number(user.matk) },
-            select: { mabn: true },
+                include: appointmentInclude(),
+            });
         });
-        if (!patient || appointment.mabn !== patient.mabn) {
-            const error = new Error("Bạn không có quyền dời lịch hẹn này!");
-            error.statusCode = 403;
-            throw error;
-        }
+    } else {
+        updated = await prisma.lichhen.update({
+            where: { malh: appointmentId },
+            data,
+            include: appointmentInclude(),
+        });
     }
 
-    const targetDoctorId = mabs ? Number(mabs) : appointment.mabs;
-    const targetDateStr = ngayhen ? ngayhen.trim() : appointment.ngayhen.toISOString().split("T")[0];
-    const targetDate = new Date(targetDateStr);
-    const targetTimeDate = giohen ? parseTimeToDate(giohen.trim()) : appointment.giohen;
-    const targetMinutes = getTimeInMinutes(targetTimeDate);
-
-    // Kiểm tra ca trực của bác sĩ
-    const doctorShifts = await prisma.phanconglamviec.findMany({
-        where: {
-            manv: targetDoctorId,
-            calamviec: { ngay: targetDate },
-        },
-        include: { calamviec: true },
-    });
-
-    if (doctorShifts.length === 0) {
-        const error = new Error(`Bác sĩ không có ca trực vào ngày ${targetDateStr}!`);
-        error.statusCode = 400;
-        throw error;
-    }
-
-    const isWithinShift = doctorShifts.some((ps) => {
-        const shiftStart = getTimeInMinutes(ps.calamviec.giobatdau);
-        const shiftEnd = getTimeInMinutes(ps.calamviec.gioketthuc);
-        return targetMinutes >= shiftStart && targetMinutes < shiftEnd;
-    });
-
-    if (!isWithinShift) {
-        const error = new Error("Khung giờ mới không nằm trong ca trực của bác sĩ!");
-        error.statusCode = 400;
-        throw error;
-    }
-
-    // Kiểm tra trùng slot bác sĩ (loại trừ chính lịch hẹn này)
-    const conflictDoctor = await prisma.lichhen.findFirst({
-        where: {
-            malh: { not: appointmentId },
-            mabs: targetDoctorId,
-            ngayhen: targetDate,
-            giohen: targetTimeDate,
-            trangthai: { in: ["ChoXacNhan", "DaXacNhan"] },
-        },
-    });
-
-    if (conflictDoctor) {
-        const error = new Error("Khung giờ mới của bác sĩ đã có lịch hẹn trước!");
-        error.statusCode = 409;
-        throw error;
-    }
-
-    const updated = await prisma.lichhen.update({
-        where: { malh: appointmentId },
-        data: {
-            mabs: targetDoctorId,
-            ngayhen: targetDate,
-            giohen: targetTimeDate,
-            trangthai: "ChoXacNhan", // Dời lịch đưa về trạng thái chờ xác nhận
-        },
-        include: {
-            benhnhan: true,
-            bacsi: {
-                include: {
-                    nhanvien: true,
-                    chuyenkhoa: true,
-                },
-            },
-        },
+    await writeAudit({
+        matk: user.matk,
+        hanhdong: "DOI_TRANG_THAI_LICH",
+        doituong: "lichhen",
+        doituongId: appointmentId,
+        truoc: { trangthai: appointment.trangthai },
+        sau: { trangthai: updated.trangthai, lydohuy: updated.lydohuy || null },
     });
 
     return formatAppointmentResponse(updated);
 }
 
 /**
- * 7. Hủy lịch hẹn
+ * 6. Dời ngày/giờ khám hoặc đổi bác sĩ
  */
-async function cancelAppointmentService(id, user) {
-    return updateAppointmentStatusService(id, { trangthai: "DaHuy" }, user);
+async function rescheduleAppointmentService(id, { ngayhen, giohen, mabs }, user) {
+    const appointmentId = Number(id);
+    const appointment = await prisma.lichhen.findUnique({
+        where: { malh: appointmentId },
+        include: { benhnhan: true, bacsi: true },
+    });
+
+    if (!appointment) {
+        throw httpError(404, `Không tìm thấy lịch hẹn với mã ID: ${appointmentId}`);
+    }
+    if (![APPOINTMENT_STATUS.CHO_XAC_NHAN, APPOINTMENT_STATUS.DA_XAC_NHAN].includes(appointment.trangthai)) {
+        throw httpError(400, "Chỉ có thể dời lịch đang chờ xác nhận hoặc đã xác nhận");
+    }
+
+    if (user.vaitro === "BenhNhan") {
+        const patient = await getPatientByAccount(user.matk);
+        assertAppointmentOwnership(appointment, patient);
+    }
+
+    const targetDoctorId = mabs ? Number(mabs) : appointment.mabs;
+    const targetDateStr = ngayhen ? String(ngayhen).trim() : formatDateOnly(appointment.ngayhen);
+    const targetTimeStr = giohen ? String(giohen).trim() : formatTime(appointment.giohen);
+
+    const targetDate = validateBookingDate(targetDateStr);
+    validateBookingTime(targetDateStr, targetTimeStr);
+    const targetTime = parseTimeToDate(targetTimeStr);
+
+    const doctor = await prisma.bacsi.findUnique({
+        where: { mabs: targetDoctorId },
+        select: { mabs: true },
+    });
+    if (!doctor) {
+        throw httpError(404, "Không tìm thấy bác sĩ mới");
+    }
+
+    const shifts = await getDoctorShiftOrThrow(targetDoctorId, targetDate, targetDateStr);
+    assertWithinShift(targetTimeStr, shifts);
+    await assertNoSlotConflict({
+        mabs: targetDoctorId,
+        mabn: appointment.mabn,
+        ngayhen: targetDate,
+        giohen: targetTime,
+        excludeId: appointmentId,
+    });
+
+    const updated = await prisma.lichhen.update({
+        where: { malh: appointmentId },
+        data: {
+            mabs: targetDoctorId,
+            ngayhen: targetDate,
+            giohen: targetTime,
+            trangthai: APPOINTMENT_STATUS.CHO_XAC_NHAN,
+            sohangcho: null,
+            thoigiantiepdon: null,
+            lydohuy: null,
+            thoigianhuy: null,
+        },
+        include: appointmentInclude(),
+    });
+
+    await writeAudit({
+        matk: user.matk,
+        hanhdong: "DOI_LICH",
+        doituong: "lichhen",
+        doituongId: appointmentId,
+        truoc: {
+            mabs: appointment.mabs,
+            ngayhen: formatDateOnly(appointment.ngayhen),
+            giohen: formatTime(appointment.giohen),
+        },
+        sau: { mabs: targetDoctorId, ngayhen: targetDateStr, giohen: targetTimeStr },
+    });
+
+    return formatAppointmentResponse(updated);
+}
+
+/**
+ * 6b. Hủy lịch hẹn (có lý do bắt buộc)
+ */
+async function cancelAppointmentService(id, user, lydohuy) {
+    return updateAppointmentStatusService(
+        id,
+        { trangthai: APPOINTMENT_STATUS.DA_HUY, lydohuy },
+        user,
+    );
+}
+
+/**
+ * 7. Tiếp đón bệnh nhân (check-in) và cấp số thứ tự
+ */
+async function checkInAppointmentService(id, user) {
+    const appointmentId = Number(id);
+    const appointment = await prisma.lichhen.findUnique({
+        where: { malh: appointmentId },
+        include: { benhnhan: true },
+    });
+
+    if (!appointment) {
+        throw httpError(404, `Không tìm thấy lịch hẹn với mã ID: ${appointmentId}`);
+    }
+    if (appointment.trangthai !== APPOINTMENT_STATUS.DA_XAC_NHAN) {
+        throw httpError(400, "Chỉ có thể tiếp đón lịch hẹn đã được xác nhận");
+    }
+
+    const updated = await prisma.$transaction(async (tx) => {
+        const queueNumber = await assignQueueNumber(tx, appointment);
+        return tx.lichhen.update({
+            where: { malh: appointmentId },
+            data: {
+                trangthai: APPOINTMENT_STATUS.DA_TIEP_DON,
+                sohangcho: queueNumber,
+                thoigiantiepdon: new Date(),
+            },
+            include: appointmentInclude(),
+        });
+    });
+
+    await writeAudit({
+        matk: user.matk,
+        hanhdong: "TIEP_DON",
+        doituong: "lichhen",
+        doituongId: appointmentId,
+        sau: { sohangcho: updated.sohangcho },
+    });
+
+    return formatAppointmentResponse(updated);
+}
+
+/**
+ * 8. Hàng chờ khám trong ngày
+ */
+async function getQueueService(query = {}) {
+    const dateStr = query.date ? String(query.date).trim() : todayVN();
+    const date = parseDateOnly(dateStr);
+    if (!date) {
+        throw httpError(400, "Ngày hàng chờ không hợp lệ");
+    }
+
+    const where = {
+        ngayhen: date,
+        trangthai: {
+            in: [
+                APPOINTMENT_STATUS.DA_XAC_NHAN,
+                APPOINTMENT_STATUS.DA_TIEP_DON,
+                APPOINTMENT_STATUS.DA_KHAM,
+            ],
+        },
+    };
+    if (query.mabs) where.mabs = Number(query.mabs);
+
+    const rows = await prisma.lichhen.findMany({
+        where,
+        include: appointmentInclude(),
+        orderBy: [
+            { sohangcho: { sort: "asc", nulls: "last" } },
+            { giohen: "asc" },
+        ],
+    });
+
+    return {
+        ngayhen: dateStr,
+        data: rows.map(formatAppointmentResponse),
+        summary: {
+            tong: rows.length,
+            datiepdon: rows.filter((row) => row.trangthai === APPOINTMENT_STATUS.DA_TIEP_DON).length,
+            dakham: rows.filter((row) => row.trangthai === APPOINTMENT_STATUS.DA_KHAM).length,
+        },
+    };
 }
 
 module.exports = {
+    formatAppointmentResponse,
     createAppointmentService,
+    getAvailableSlotsService,
     getMyAppointmentsService,
     getAllAppointmentsService,
     getAppointmentByIdService,
     updateAppointmentStatusService,
     rescheduleAppointmentService,
     cancelAppointmentService,
+    checkInAppointmentService,
+    getQueueService,
 };
