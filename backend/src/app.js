@@ -2,6 +2,9 @@ const express = require("express");
 const cors = require("cors");
 const helmet = require("helmet");
 const morgan = require("morgan");
+const path = require("path");
+const swaggerUi = require("swagger-ui-express");
+const YAML = require("yamljs");
 const authRoutes = require("./routers/auth.router");
 const patientRoutes = require("./routers/patient.router");
 const specialtyRoutes = require("./routers/specialty.router");
@@ -15,8 +18,10 @@ const statisticRoutes = require("./routers/statistic.router");
 const examinationRoutes = require("./routers/examination.router");
 const medicineRoutes = require("./routers/medicine.router");
 const prescriptionRoutes = require("./routers/prescription.router");
+const healthRoutes = require("./routers/health.router");
 const errorMiddleware = require("./middlewares/error.middleware");
 const app = express();
+const swaggerDocument = YAML.load(path.join(__dirname, "../docs/openapi.yaml"));
 
 // ========================================================
 // 1. CẤU HÌNH CÁC MIDDLEWARE CƠ BẢN
@@ -50,6 +55,11 @@ app.use(
 app.use(morgan("dev")); // Log các request gửi lên server trong môi trường dev
 app.use(express.json()); // Phân tích dữ liệu JSON từ body request
 app.use(express.urlencoded({ extended: true })); // Phân tích dữ liệu từ urlencoded form
+// Luôn đảm bảo req.body là object để validator không bị lỗi 500 khi client không gửi body.
+app.use((req, res, next) => {
+    if (req.body === undefined || req.body === null) req.body = {};
+    return next();
+});
 
 // ========================================================
 // 2. ROUTE KIỂM TRA HỆ THỐNG (HEALTH CHECK)
@@ -61,6 +71,11 @@ app.get("/", (req, res) => {
         timestamp: new Date().toISOString(),
     });
 });
+
+app.use("/api/health", healthRoutes);
+app.use("/api/docs", swaggerUi.serve, swaggerUi.setup(swaggerDocument, {
+    customSiteTitle: "Clinic API Documentation",
+}));
 
 // ========================================================
 // 3. ĐĂNG KÝ CÁC ROUTERS CHÍNH CỦA HỆ THỐNG

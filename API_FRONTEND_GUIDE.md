@@ -1,6 +1,127 @@
 # 📋 TÀI LIỆU TÍCH HỢP API BACKEND CHO FRONTEND
 > **Hệ Thống Quản Lý Phòng Khám (Clinic Management System)**  
-> **Cập nhật ngày:** 15/10/2026 | **Phiên bản API:** v1.1.0
+> **Cập nhật ngày:** 27/10/2026 | **Phiên bản API:** v1.2.0
+
+---
+
+## 🆕 0. CẬP NHẬT HỢP ĐỒNG API NGÀY 27/10/2026
+
+> Phần này **ưu tiên hơn** các mô tả cũ bên dưới nếu có khác biệt. Frontend nên đọc phần này trước khi tích hợp.
+
+### 0.1. Đăng nhập, refresh token và tài khoản
+
+**`POST /api/auth/login`** trả HTTP **200** (không phải 201) và token nằm trong `data`:
+
+```json
+{
+  "success": true,
+  "message": "Đăng nhập thành công",
+  "data": {
+    "accessToken": "...",
+    "refreshToken": "...",
+    "tokenType": "Bearer",
+    "expiresIn": "1d",
+    "refreshExpiresInDays": 30,
+    "user": { "matk": 1, "tendangnhap": "admin", "vaitro": "Admin", "manv": 1, "hoten": "..." }
+  }
+}
+```
+
+Không còn cấu trúc `data.user.user.token`; FE phải đọc `data.accessToken` và `data.user`.
+
+| Method | Endpoint | Quyền | Ghi chú |
+|--------|----------|-------|---------|
+| POST | `/api/auth/refresh` | Public | Body `{ refreshToken }`; token cũ bị thu hồi, trả cặp token mới |
+| POST | `/api/auth/logout` | Public | Body `{ refreshToken }`; thu hồi token hiện tại |
+| GET | `/api/auth/me` | Đã đăng nhập | Hồ sơ đầy đủ; dùng thay `/profile` cũ |
+| PUT | `/api/auth/me/password` | Đã đăng nhập | Body `{ oldPassword, newPassword }`; thu hồi refresh token |
+| POST | `/api/auth/forgot-password` | Public | Body `{ username }`; dev trả `data.devOtp`, production không trả OTP |
+| POST | `/api/auth/reset-password` | Public | Body `{ username, otp, newPassword }` |
+| GET | `/api/auth/accounts` | Admin | Query `page, limit, vaitro, trangthai, search` |
+| POST | `/api/auth/accounts` | Admin | Tạo tài khoản + hồ sơ nhân viên/bệnh nhân trong 1 transaction |
+| PATCH | `/api/auth/accounts/:id/status` | Admin | Body `{ trangthai: "HoatDong" \| "KhoaTaiKhoan" }` |
+| POST | `/api/auth/accounts/:id/reset-password` | Admin | Body `{ newPassword }`; thu hồi refresh token |
+
+Tạo tài khoản nhân viên:
+
+```json
+{
+  "username": "bs_minh",
+  "password": "MatKhau@123",
+  "vaitro": "BacSi",
+  "hoten": "Nguyễn Văn Minh",
+  "gioitinh": "Nam",
+  "ngaysinh": "1985-05-05",
+  "sdt": "0901234567",
+  "chucvu": "BacSi",
+  "ngayvaolam": "2020-01-01",
+  "diachi": "Hà Nội"
+}
+```
+
+Lưu ý: tạo tài khoản `BacSi` **chưa tự tạo hồ sơ `bacsi`** (cần chuyên khoa, giấy phép hành nghề). Sau khi tạo tài khoản, Admin gọi `POST /api/doctors` để hoàn tất hồ sơ bác sĩ.
+
+### 0.2. Lịch hẹn và tiếp đón
+
+| Method | Endpoint | Quyền | Ghi chú |
+|--------|----------|-------|---------|
+| GET | `/api/appointments/available-slots?mabs=2&ngayhen=2026-10-28` | BenhNhan, Admin, LeTan, BacSi | Trả slot 30 phút, `conlai`, `daky`; slot đã qua đánh dấu không khả dụng |
+| PATCH | `/api/appointments/:id/check-in` | Admin, LeTan | Tiếp đón lịch `DaXacNhan`, cấp `sohangcho` |
+| GET | `/api/appointments/queue?date=2026-10-28&mabs=2` | Admin, LeTan, BacSi | Hàng chờ trong ngày, sắp theo số thứ tự |
+| PUT | `/api/appointments/:id/status` | Admin, LeTan, BacSi, BenhNhan (chỉ hủy) | Body `{ trangthai, ghichu?, lydohuy? }` |
+| PUT | `/api/appointments/:id/reschedule` | Admin, LeTan, BacSi, BenhNhan (của mình) | Body `{ ngayhen?, giohen?, mabs? }` |
+| PUT | `/api/appointments/:id/cancel` | Admin, LeTan, BacSi, BenhNhan (của mình) | Body `{ lydohuy }`; vẫn giữ `DELETE /:id` để tương thích |
+
+Quy tắc đặt lịch: slot phải là bội số 30 phút, nằm trọn trong ca trực, tối đa 30 ngày tới; chặn trùng **cả bác sĩ và bệnh nhân**; hai request đồng thời cùng slot sẽ có một request nhận **409**.
+
+### 0.3. Hóa đơn, thanh toán và hoàn tiền
+
+Các method thực tế là **PUT**, không phải PATCH như mô tả cũ:
+
+| Method | Endpoint | Quyền | Ghi chú |
+|--------|----------|-------|---------|
+| GET | `/api/invoices/by-exam/:malsk` | Admin, LeTan, BenhNhan (của mình) | Tìm hóa đơn theo lần khám |
+| PUT | `/api/invoices/:id/pay` | Admin, LeTan | Body `{ phuongthuctt }`; lưu `ngaythanhtoan` |
+| PUT | `/api/invoices/:id/cancel` | Admin, LeTan | Hủy; nếu đã thanh toán chỉ Admin được hủy/hoàn phần còn lại |
+| POST | `/api/invoices/:id/refund` | Admin | Body `{ sotien, lydo, phuongthuc? }`; không vượt quá số đã thu |
+
+- `POST /api/invoices` chỉ cần `{ malsk }`; giá dịch vụ/thuốc **luôn lấy từ danh mục server**, client không gửi `dongia`.
+- Response hóa đơn có `tongtien`, `tonghoantien`, `ngaythanhtoan`, `trangthaithanhtoan`, mảng `hoantien`.
+- `tongtien` do trigger PostgreSQL cập nhật sau mỗi lần thêm/xóa/sửa chi tiết; không tự tính ở FE.
+
+### 0.4. Báo cáo mới
+
+| Method | Endpoint | Quyền | Ghi chú |
+|--------|----------|-------|---------|
+| GET | `/api/statistics/patients` | Admin | Bệnh nhân mới theo giới tính/nhóm tuổi |
+| GET | `/api/statistics/revenue-by-specialty` | Admin | Doanh thu theo chuyên khoa |
+| GET | `/api/statistics/revenue-by-doctor` | Admin | Doanh thu theo bác sĩ |
+| GET | `/api/statistics/export/revenue` | Admin | Tải CSV doanh thu |
+
+Mọi báo cáo nhận `startDate`, `endDate` (`YYYY-MM-DD`); mặc định 30 ngày gần nhất. `revenue` trả thêm `tong_doanhthu_gop`, `tong_hoantien`, `tong_doanhthu` (đã trừ hoàn tiền).
+
+### 0.5. Health check
+
+| Method | Endpoint | Ghi chú |
+|--------|----------|---------|
+| GET | `/api/health` | API sống |
+| GET | `/api/health/db` | Kiểm tra DB, trigger tính tiền, 2 unique index chống trùng slot |
+
+### 0.6. Bảng quyền nhanh
+
+| Nhóm API | Admin | LeTan | BacSi | YTa | BenhNhan |
+|----------|:-----:|:-----:|:-----:|:---:|:--------:|
+| Tài khoản | ✅ | ❌ | ❌ | ❌ | ❌ |
+| Bệnh nhân walk-in | ✅ | ✅ | ❌ | ❌ | ❌ |
+| Đặt lịch | ✅ | ✅ | ❌ | ❌ | ✅ (của mình) |
+| Xem/duyệt lịch | ✅ | ✅ | ✅ | ❌ | ✅ (của mình) |
+| Tiếp đón/hàng chờ | ✅ | ✅ | Xem | ❌ | ❌ |
+| Khám bệnh | ✅ | ❌ | ✅ | ❌ | ❌ |
+| Hóa đơn/thu ngân | ✅ | ✅ | ❌ | ❌ | Xem của mình |
+| Hoàn tiền | ✅ | ❌ | ❌ | ❌ | ❌ |
+| Báo cáo | ✅ | ❌ | ❌ | ❌ | ❌ |
+
+> Các mục 3–12 bên dưới là tài liệu cũ, có thể còn ghi `PATCH /invoices/:id/pay`, `DELETE /appointments/:id/cancel`, hoặc cấu trúc login cũ. Dùng bảng ở mục 0 làm chuẩn.
 
 ---
 
@@ -58,20 +179,18 @@
 ```json
 {
   "success": true,
-  "message": "Đăng ký tài khoản thành công!",
+  "message": "Đăng ký tài khoản thành công",
   "data": {
-    "account": {
-      "matk": 1,
-      "tendangnhap": "nguyenvanan",
-      "vaitro": "BenhNhan",
-      "trangthai": "HoatDong"
-    },
-    "patient": {
-      "mabn": 1,
-      "hoten": "Nguyễn Văn An",
-      "gioitinh": "Nam",
-      "sdt": "0912345678"
-    }
+    "matk": 1,
+    "tendangnhap": "nguyenvanan",
+    "vaitro": "BenhNhan",
+    "mabn": 1,
+    "hoten": "Nguyễn Văn An",
+    "gioitinh": "Nam",
+    "ngaysinh": "1990-01-01",
+    "sdt": "0912345678",
+    "trangthai": "HoatDong",
+    "ngaytao": "2026-10-27T00:00:00.000Z"
   }
 }
 ```
@@ -92,34 +211,43 @@
 ```json
 {
   "success": true,
-  "message": "Đăng nhập thành công!",
-  "accessToken": "eyJhbGciOiJIUzI1NiIsInR5cCI6...",
-  "user": {
-    "matk": 1,
-    "tendangnhap": "nguyenvanan",
-    "vaitro": "BenhNhan",
-    "mabn": 1 // Mã bệnh nhân (nếu role là BenhNhan)
+  "message": "Đăng nhập thành công",
+  "data": {
+    "accessToken": "eyJhbGciOiJIUzI1NiIsInR5cCI6...",
+    "refreshToken": "aBcD...",
+    "tokenType": "Bearer",
+    "expiresIn": "1d",
+    "refreshExpiresInDays": 30,
+    "user": {
+      "matk": 1,
+      "tendangnhap": "nguyenvanan",
+      "vaitro": "BenhNhan",
+      "mabn": 1
+    }
   }
 }
 ```
 > **💡 Lưu ý cho Frontend:** 
-> Lưu `accessToken` vào `localStorage` hoặc Cookie. Lưu thông tin `user` vào Redux / Pinia / React Context để phân quyền hiển thị giao diện.
+> Lưu `data.accessToken` và `data.refreshToken` vào bộ nhớ an toàn; lưu `data.user` vào Redux / Pinia / React Context để phân quyền hiển thị giao diện. Không đọc `accessToken` ở cấp ngoài `data`.
 
 ---
 
-### 3.3. Xem thông tin Token cá nhân (Kiểm tra đăng nhập)
-* **Endpoint:** `GET /api/auth/profile`
+### 3.3. Xem thông tin tài khoản đang đăng nhập
+* **Endpoint:** `GET /api/auth/me` (alias cũ: `GET /api/auth/profile`)
 * **Quyền:** Cần Token (`Bearer Token` mọi role)
 * **Response Thành công (200 OK):**
 ```json
 {
   "success": true,
-  "message": "Xác thực Token thành công! Đây là thông tin cá nhân của bạn.",
-  "user": {
+  "message": "Lấy thông tin tài khoản thành công",
+  "data": {
     "matk": 1,
     "tendangnhap": "nguyenvanan",
     "vaitro": "BenhNhan",
-    "mabn": 1
+    "mabn": 1,
+    "hoten": "Nguyễn Văn An",
+    "sdt": "0912345678",
+    "trangthai": "HoatDong"
   }
 }
 ```
@@ -1704,8 +1832,9 @@ Phân hệ phục vụ hiển thị bảng giá dịch vụ khám bệnh, danh m
 ---
 
 ### 10.4. Cập nhật trạng thái lịch hẹn (Tiếp đón, Duyệt, Hủy)
-* **Endpoint:** `PATCH /api/appointments/:id/status`
-* **Quyền:** `Admin`, `LeTan`
+* **Endpoint:** `PUT /api/appointments/:id/status`
+* **Quyền:** `Admin`, `LeTan`, `BacSi`; `BenhNhan` chỉ được hủy lịch của mình.
+* **Tiếp đón nhanh:** dùng `PATCH /api/appointments/:id/check-in` (Admin, LeTan) để chuyển `DaXacNhan` → `DaTiepDon` và cấp số thứ tự.
 * **Quy trình chuyển đổi trạng thái (`trangthai`):**
   - `ChoXacNhan` -> `DaXacNhan`: Lễ tân gọi điện xác nhận người bệnh đến khám.
   - `DaXacNhan` -> `DaTiepDon`: Bệnh nhân có mặt tại phòng khám để làm thủ tục vào khám.
@@ -1722,8 +1851,8 @@ Phân hệ phục vụ hiển thị bảng giá dịch vụ khám bệnh, danh m
 ---
 
 ### 10.5. Đổi lịch hẹn (Reschedule)
-* **Endpoint:** `PATCH /api/appointments/:id/reschedule`
-* **Quyền:** `Admin`, `LeTan`, `BenhNhan` (Bệnh nhân chỉ đổi được lịch của mình khi còn ở trạng thái `ChoXacNhan` hoặc `DaXacNhan`)
+* **Endpoint:** `PUT /api/appointments/:id/reschedule`
+* **Quyền:** `Admin`, `LeTan`, `BacSi`, `BenhNhan` (Bệnh nhân chỉ đổi được lịch của mình khi còn ở trạng thái `ChoXacNhan` hoặc `DaXacNhan`).
 * **Request Body:**
 ```json
 {
@@ -1736,8 +1865,8 @@ Phân hệ phục vụ hiển thị bảng giá dịch vụ khám bệnh, danh m
 ---
 
 ### 10.6. Hủy lịch hẹn
-* **Endpoint:** `DELETE /api/appointments/:id/cancel`
-* **Quyền:** `Admin`, `LeTan`, `BenhNhan`
+* **Endpoint:** `PUT /api/appointments/:id/cancel` (tương thích: `DELETE /api/appointments/:id`)
+* **Quyền:** `Admin`, `LeTan`, `BacSi`, `BenhNhan` (chỉ lịch của mình)
 * **Request Body:**
 ```json
 {
@@ -1756,42 +1885,49 @@ Phân hệ phục vụ hiển thị bảng giá dịch vụ khám bệnh, danh m
   - Hệ thống tự động quét chi tiết các dịch vụ kỹ thuật đã chỉ định (`ChiTietDichVu`) và đơn thuốc (`ChiTietDonThuoc`) từ phiên khám `malsk`.
   - Tự động tạo các bản ghi chi tiết viện phí tương ứng trong bảng `ChiTietHoaDon`.
   - **Trigger PostgreSQL `trg_cthd_update_tongtien`** sẽ tự động tính tổng tiền `tongtien` của hóa đơn ngay tại Database.
-* **Request Body:**
+* **Request Body:** chỉ cần mã lần khám; giá lấy từ danh mục server.
 ```json
 {
-  "malsk": 101,                         // Mã lịch sử khám bệnh
-  "phuongthucthanhtoan": "TienMat",     // "TienMat" | "ChuyenKhoan" | "TheNganHang" | "ViDienTu"
-  "ghichu": "Hóa đơn khám bệnh và thuốc"
+  "malsk": 101
 }
 ```
 * **Response Thành công (201 Created):**
 ```json
 {
-  "status": "success",
+  "success": true,
   "message": "Khởi tạo hóa đơn viện phí thành công",
   "data": {
     "mahd": 55,
+    "mabn": 12,
     "malsk": 101,
-    "ngaylap": "2026-10-25T09:30:00.000Z",
+    "ngaylap": "2026-10-27T09:30:00.000Z",
+    "ngaythanhtoan": null,
     "tongtien": 650000,
+    "tonghoantien": 0,
     "trangthaithanhtoan": "ChuaThanhToan",
-    "phuongthucthanhtoan": "TienMat",
+    "phuongthuctt": null,
     "chitiethoadon": [
       {
         "macthd": 1,
-        "noidung": "Dịch vụ: Khám Nội tổng quát",
+        "madv": 1,
+        "mathuoc": null,
+        "loai": "DichVu",
+        "ten": "Khám Nội tổng quát",
+        "donvitinh": "Lần",
         "soluong": 1,
         "dongia": 150000,
-        "thanhtien": 150000,
-        "loaichiphi": "DichVu"
+        "thanhtien": 150000
       },
       {
         "macthd": 2,
-        "noidung": "Thuốc: Paracetamol 500mg (Viên)",
+        "madv": null,
+        "mathuoc": 5,
+        "loai": "Thuoc",
+        "ten": "Paracetamol 500mg",
+        "donvitinh": "Viên",
         "soluong": 20,
         "dongia": 25000,
-        "thanhtien": 500000,
-        "loaichiphi": "Thuoc"
+        "thanhtien": 500000
       }
     ]
   }
@@ -1804,13 +1940,18 @@ Phân hệ phục vụ hiển thị bảng giá dịch vụ khám bệnh, danh m
 * **Endpoint:** `POST /api/invoices/:id/items`
 * **Quyền:** `Admin`, `LeTan`
 * **Lưu ý:** Chỉ thêm được khi hóa đơn ở trạng thái `ChuaThanhToan`. Trigger DB sẽ tự động cộng dồn `tongtien`.
-* **Request Body:**
+* **Request Body:** chọn đúng một trong `madv` hoặc `mathuoc`; **không gửi `dongia`** (nếu gửi sẽ bị bỏ qua).
 ```json
 {
-  "noidung": "Phí vật tư tiêu hao / Băng gạc vô trùng",
-  "soluong": 2,
-  "dongia": 25000,
-  "loaichiphi": "Khac" // "DichVu" | "Thuoc" | "KhamBenh" | "Khac"
+  "madv": 3,
+  "soluong": 2
+}
+```
+Hoặc:
+```json
+{
+  "mathuoc": 5,
+  "soluong": 10
 }
 ```
 
@@ -1824,27 +1965,23 @@ Phân hệ phục vụ hiển thị bảng giá dịch vụ khám bệnh, danh m
 ---
 
 ### 11.4. Thu ngân xác nhận thanh toán hóa đơn
-* **Endpoint:** `PATCH /api/invoices/:id/pay`
+* **Endpoint:** `PUT /api/invoices/:id/pay`
 * **Quyền:** `Admin`, `LeTan`
 * **Request Body:**
 ```json
 {
-  "phuongthucthanhtoan": "ChuyenKhoan", // "TienMat" | "ChuyenKhoan" | "TheNganHang" | "ViDienTu"
-  "ghichu": "Đã nhận thanh toán qua QR Code VietQR"
+  "phuongthuctt": "TienMat"
 }
 ```
+Giá trị hợp lệ: `TienMat`, `ChuyenKhoan`, `TheThanhToan`, `ViDienTu`.
 
 ---
 
 ### 11.5. Hủy hóa đơn viện phí
-* **Endpoint:** `PATCH /api/invoices/:id/cancel`
-* **Quyền:** `Admin`
-* **Request Body:**
-```json
-{
-  "lydohuy": "Bác sĩ chỉ định hủy khám hoàn lại tiền"
-}
-```
+* **Endpoint:** `PUT /api/invoices/:id/cancel`
+* **Quyền:** `Admin`, `LeTan` (hóa đơn **đã thanh toán** chỉ Admin được hủy/hoàn tiền)
+* **Request Body:** không bắt buộc.
+* **Hoàn tiền một phần/toàn phần:** `POST /api/invoices/:id/refund` (chỉ Admin) với `{ "sotien": 50000, "lydo": "Hoàn một phần" }`.
 
 ---
 

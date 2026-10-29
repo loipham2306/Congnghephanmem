@@ -1,0 +1,167 @@
+openapi: 3.0.3
+info:
+  title: Clinic Management API
+  version: 1.0.0
+  description: API cho hệ thống quản lý phòng khám.
+servers:
+  - url: http://localhost:5000
+    description: Local development
+tags:
+  - name: Authentication
+  - name: Patients
+  - name: Appointments
+  - name: Invoices
+  - name: Statistics
+  - name: Health
+paths:
+  /api/health:
+    get:
+      tags: [Health]
+      summary: Kiểm tra API đang hoạt động
+      responses:
+        '200': { description: API hoạt động }
+  /api/health/db:
+    get:
+      tags: [Health]
+      summary: Kiểm tra kết nối CSDL, trigger và index lịch hẹn
+      responses:
+        '200': { description: CSDL khả dụng }
+        '503': { description: Không kết nối được CSDL }
+  /api/auth/register:
+    post:
+      tags: [Authentication]
+      summary: Đăng ký bệnh nhân
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/RegisterRequest' }
+      responses:
+        '201': { description: Đăng ký thành công }
+        '409': { description: Tài khoản đã tồn tại }
+  /api/auth/login:
+    post:
+      tags: [Authentication]
+      summary: Đăng nhập
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/LoginRequest' }
+      responses:
+        '200': { description: Trả về access token và refresh token }
+        '401': { description: Thông tin đăng nhập không hợp lệ }
+  /api/auth/refresh:
+    post:
+      tags: [Authentication]
+      summary: Làm mới access token
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/RefreshRequest' }
+      responses:
+        '200': { description: Token đã được làm mới }
+  /api/auth/logout:
+    post:
+      tags: [Authentication]
+      summary: Thu hồi refresh token
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/RefreshRequest' }
+      responses:
+        '200': { description: Đăng xuất thành công }
+  /api/auth/me:
+    get:
+      tags: [Authentication]
+      summary: Lấy thông tin tài khoản hiện tại
+      security: [{ bearerAuth: [] }]
+      responses:
+        '200': { description: Hồ sơ tài khoản }
+        '401': { description: Chưa xác thực }
+  /api/auth/accounts:
+    get:
+      tags: [Authentication]
+      summary: Danh sách tài khoản (Admin)
+      security: [{ bearerAuth: [] }]
+      responses:
+        '200': { description: Danh sách tài khoản }
+        '403': { description: Không có quyền }
+    post:
+      tags: [Authentication]
+      summary: Tạo tài khoản (Admin)
+      security: [{ bearerAuth: [] }]
+      responses:
+        '201': { description: Tạo tài khoản thành công }
+  /api/patients:
+    get:
+      tags: [Patients]
+      summary: Danh sách bệnh nhân
+      security: [{ bearerAuth: [] }]
+      responses:
+        '200': { description: Danh sách bệnh nhân }
+  /api/appointments:
+    get:
+      tags: [Appointments]
+      summary: Danh sách lịch hẹn
+      security: [{ bearerAuth: [] }]
+      responses:
+        '200': { description: Danh sách lịch hẹn }
+    post:
+      tags: [Appointments]
+      summary: Đặt lịch hẹn
+      security: [{ bearerAuth: [] }]
+      responses:
+        '201': { description: Đặt lịch thành công }
+        '409': { description: Slot đã được đặt }
+  /api/invoices:
+    get:
+      tags: [Invoices]
+      summary: Danh sách hóa đơn
+      security: [{ bearerAuth: [] }]
+      responses:
+        '200': { description: Danh sách hóa đơn }
+    post:
+      tags: [Invoices]
+      summary: Lập hóa đơn
+      security: [{ bearerAuth: [] }]
+      responses:
+        '201': { description: Tạo hóa đơn thành công }
+  /api/statistics/revenue:
+    get:
+      tags: [Statistics]
+      summary: Báo cáo doanh thu (Admin)
+      security: [{ bearerAuth: [] }]
+      responses:
+        '200': { description: Báo cáo doanh thu }
+        '403': { description: Không có quyền }
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  schemas:
+    LoginRequest:
+      type: object
+      required: [username, password]
+      properties:
+        username: { type: string, example: admin }
+        password: { type: string, format: password, example: Admin@123 }
+    RefreshRequest:
+      type: object
+      required: [refreshToken]
+      properties:
+        refreshToken: { type: string }
+    RegisterRequest:
+      type: object
+      required: [username, password, hoten, gioitinh, ngaysinh, sdt]
+      properties:
+        username: { type: string }
+        password: { type: string, format: password }
+        hoten: { type: string }
+        gioitinh: { type: string, enum: [Nam, Nu, Khac] }
+        ngaysinh: { type: string, format: date }
+        sdt: { type: string }
