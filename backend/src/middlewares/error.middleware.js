@@ -3,9 +3,6 @@
 // ========================================================
 
 function errorMiddleware(err, req, res, next) {
-    // Log lỗi chi tiết trên máy chủ
-    console.error("🔥 [Server Error]:", err.stack || err.message || err);
-
     let statusCode = err.statusCode || err.status || 500;
     let message = err.message || "Lỗi máy chủ nội bộ (Internal Server Error)";
 
@@ -17,6 +14,14 @@ function errorMiddleware(err, req, res, next) {
     } else if (err.code === "P2025") {
         statusCode = 404;
         message = "Không tìm thấy bản ghi dữ liệu yêu cầu!";
+    }
+
+    // Chỉ log stack cho lỗi hệ thống 5xx; 4xx là lỗi nghiệp vụ đã được xử lý.
+    if (statusCode >= 500) {
+        console.error("🔥 [Server Error]:", err.stack || err.message || err);
+        if (process.env.NODE_ENV === "production") {
+            message = "Lỗi máy chủ nội bộ (Internal Server Error)";
+        }
     }
 
     return res.status(statusCode).json({

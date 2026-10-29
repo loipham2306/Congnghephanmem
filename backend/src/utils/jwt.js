@@ -1,9 +1,14 @@
 const jwt = require("jsonwebtoken");
+
+function getAccessTokenExpiresIn() {
+    return process.env.JWT_EXPIRES_IN || "7d";
+}
+
 function generateToken(payload) {
     const secret = process.env.JWT_SECRET;
     if (!secret) throw Error("JWT_SECRET chưa được cấu hình");
     return jwt.sign(payload, secret, {
-        expiresIn: process.env.JWT_EXPIRES_IN || "7d",
+        expiresIn: getAccessTokenExpiresIn(),
     });
 }
 
@@ -12,7 +17,9 @@ function verifyToken(token) {
     if (!secret) throw Error("JWT_SECRET chưa được cấu hình");
     return jwt.verify(token, secret);
 }
+
 module.exports = {
     generateToken,
     verifyToken,
+    getAccessTokenExpiresIn,
 };

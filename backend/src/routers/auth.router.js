@@ -3,47 +3,69 @@ const authController = require("../controllers/auth.controller");
 const {
     validateRegister,
     validateLogin,
+    validateRefreshToken,
+    validateChangePassword,
+    validateForgotPassword,
+    validateResetPassword,
+    validateAccountId,
+    validateCreateAccount,
+    validateAccountStatus,
+    validateResetAccountPassword,
 } = require("../validators/auth.validator");
 const authMiddleware = require("../middlewares/auth.middleware");
 const { roleMiddleware } = require("../middlewares/role.middleware");
 
 const router = express.Router();
 
+// 1. Xác thực công khai
 router.post("/register", validateRegister, authController.registerController);
 router.post("/login", validateLogin, authController.loginController);
-// 2. Task 2: Protected Endpoints (Dùng để test Verify Token & RBAC)
-// Route A: Bất kỳ ai có Token hợp lệ đều vào được (Xem Profile cá nhân)
-router.get("/profile", authMiddleware, (req, res) => {
-    res.status(200).json({
-        success: true,
-        message: "Xác thực Token thành công! Đây là thông tin cá nhân của bạn.",
-        user: req.user,
-    });
-});
-// Route B: Chỉ dành riêng cho Admin (Test cấm Bệnh nhân vào)
+router.post("/refresh", validateRefreshToken, authController.refreshTokenController);
+router.post("/logout", validateRefreshToken, authController.logoutController);
+
+// 2. Quên / đặt lại mật khẩu (OTP)
+router.post("/forgot-password", validateForgotPassword, authController.forgotPasswordController);
+router.post("/reset-password", validateResetPassword, authController.resetPasswordController);
+
+// 3. Tài khoản đang đăng nhập
+router.get("/me", authMiddleware, authController.meController);
+router.get("/profile", authMiddleware, authController.meController);
+router.put(
+    "/me/password",
+    authMiddleware,
+    validateChangePassword,
+    authController.changePasswordController,
+);
+
+// 4. Quản trị tài khoản (Admin)
 router.get(
-    "/admin-only",
+    "/accounts",
     authMiddleware,
     roleMiddleware("Admin"),
-    (req, res) => {
-        res.status(200).json({
-            success: true,
-            message:
-                "Chào mừng Quản trị viên (Admin) truy cập khu vực nhạy cảm!",
-        });
-    },
+    authController.listAccountsController,
 );
-// Route C: Dành cho Bệnh nhân (Hoặc Bác sĩ)
-router.get(
-    "/patient-only",
+router.post(
+    "/accounts",
     authMiddleware,
-    roleMiddleware("BenhNhan", "BacSi"),
-    (req, res) => {
-        res.status(200).json({
-            success: true,
-            message: "Truy cập khu vực Bệnh nhân & Bác sĩ thành công!",
-        });
-    },
+    roleMiddleware("Admin"),
+    validateCreateAccount,
+    authController.createAccountController,
+);
+router.patch(
+    "/accounts/:id/status",
+    authMiddleware,
+    roleMiddleware("Admin"),
+    validateAccountId,
+    validateAccountStatus,
+    authController.updateAccountStatusController,
+);
+router.post(
+    "/accounts/:id/reset-password",
+    authMiddleware,
+    roleMiddleware("Admin"),
+    validateAccountId,
+    validateResetAccountPassword,
+    authController.resetAccountPasswordController,
 );
 
 module.exports = router;
