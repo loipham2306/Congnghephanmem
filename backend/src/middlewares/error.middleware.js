@@ -1,32 +1,42 @@
-// ========================================================
-// GLOBAL ERROR HANDLER MIDDLEWARE
-// ========================================================
+const { logger } = require("../config/logger");
 
 function errorMiddleware(err, req, res, next) {
     let statusCode = err.statusCode || err.status || 500;
-    let message = err.message || "Lỗi máy chủ nội bộ (Internal Server Error)";
+    let message = err.message || "Internal server error";
 
-    // Bắt và chuẩn hóa các mã lỗi phổ biến từ Prisma ORM
     if (err.code === "P2002") {
         statusCode = 409;
         const target = err.meta?.target ? ` (${err.meta.target.join(", ")})` : "";
-        message = `Dữ liệu bị trùng lặp! Trường dữ liệu này đã tồn tại trong hệ thống${target}.`;
+        message = `Duplicate data${target}.`;
     } else if (err.code === "P2025") {
         statusCode = 404;
-        message = "Không tìm thấy bản ghi dữ liệu yêu cầu!";
+        message = "Requested record was not found.";
     }
 
-    // Chỉ log stack cho lỗi hệ thống 5xx; 4xx là lỗi nghiệp vụ đã được xử lý.
+    const errorDetails = {
+        requestId: req.id || null,
+        method: req.method,
+        url: req.originalUrl,
+        ip: req.ip || req.socket?.remoteAddress,
+        userId: req.user?.matk || null,
+        statusCode,
+        errorMessage: err.message,
+        stack: err.stack,
+    };
+
     if (statusCode >= 500) {
-        console.error("🔥 [Server Error]:", err.stack || err.message || err);
+        logger.error(`Server Error: ${err.message}`, errorDetails);
         if (process.env.NODE_ENV === "production") {
-            message = "Lỗi máy chủ nội bộ (Internal Server Error)";
+            message = "Internal server error";
         }
+    } else {
+        logger.warn(`Client Error: ${err.message}`, errorDetails);
     }
 
     return res.status(statusCode).json({
         success: false,
         message,
+        requestId: req.id || undefined,
         ...(process.env.NODE_ENV === "development" && { stack: err.stack }),
     });
 }

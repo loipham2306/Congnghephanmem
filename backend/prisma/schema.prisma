@@ -148,6 +148,8 @@ model hoadon {
 
   @@index([ngaythanhtoan])
   @@index([trangthaithanhtoan])
+  @@index([mabn], map: "idx_hoadon_mabn")
+  @@index([trangthaithanhtoan, ngaylap], map: "idx_hoadon_trangthai_ngay")
 }
 
 /// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
@@ -180,6 +182,9 @@ model lichhen {
   @@index([ngayhen])
   @@index([mabs, ngayhen])
   @@index([mabn, ngayhen])
+  @@index([mabn], map: "idx_lichhen_mabn")
+  @@index([mabs], map: "idx_lichhen_mabs")
+  @@index([ngayhen, trangthai], map: "idx_lichhen_ngay_trangthai")
 }
 
 /// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
@@ -200,6 +205,9 @@ model lichsukham {
   lichhen           lichhen?            @relation(fields: [malh], references: [malh], map: "fk_lichsukham_lichhen")
 
   @@index([ngay])
+  @@index([mabn], map: "idx_lichsukham_mabn")
+  @@index([mabs], map: "idx_lichsukham_mabs")
+  @@index([ngay(sort: Desc)], map: "idx_lichsukham_ngay")
 }
 
 /// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.

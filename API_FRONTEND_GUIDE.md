@@ -2998,9 +2998,13 @@ axiosClient.interceptors.request.use((config) => {
   return config;
 }, (error) => Promise.reject(error));
 
-// 2. Xử lý kết quả & bắt lỗi tập trung
+// 2. Xử lý kết quả & bắt lỗi tập trung (kèm Request ID để tra cứu log)
 axiosClient.interceptors.response.use(
-  (response) => response.data,
+  (response) => {
+    // Lấy X-Request-Id từ response header để debug khi cần thiết
+    const requestId = response.headers['x-request-id'];
+    return response.data;
+  },
   (error) => {
     // Nếu token hết hạn hoặc không hợp lệ (401), chuyển hướng về trang Login
     if (error.response && error.response.status === 401) {
@@ -3008,13 +3012,36 @@ axiosClient.interceptors.response.use(
       localStorage.removeItem('user');
       window.location.href = '/login';
     }
+
+    // Nếu phát hiện vi phạm bảo mật SQL Injection (403)
+    if (error.response && error.response.status === 403 && error.response.data?.message?.includes('bảo mật')) {
+      console.error('🛡️ [Security Blocked]:', error.response.data.message);
+    }
+
+    const requestId = error.response?.headers?.['x-request-id'] || error.response?.data?.requestId;
     const message = error.response?.data?.message || 'Lỗi kết nối máy chủ!';
-    return Promise.reject(new Error(message));
+    const customError = new Error(message);
+    customError.requestId = requestId;
+    return Promise.reject(customError);
   }
 );
 
 export default axiosClient;
 ```
+
+---
+
+## 🛡️ 17. QUY CHUẨN BẢO MẬT & TRUY VẾT LỖI (SECURITY & REQUEST TRACING)
+
+1. **Truy vết lỗi với `X-Request-Id`:**
+   - Mọi API phản hồi đều tự động đính kèm header `X-Request-Id: req-xxxxx`.
+   - Khi gặp lỗi trên màn hình Frontend, hãy hiển thị hoặc log kèm mã `requestId` này để đội ngũ Backend có thể tra cứu chính xác nguyên nhân lỗi trong `logs/error.log` hoặc `logs/app.log` chỉ trong vài giây.
+2. **Cơ chế Chống SQL Injection & Dữ liệu không an toàn:**
+   - Máy chủ được trang bị **SQL Injection Guard** tự động quét các tham số query, params và body.
+   - Các chuỗi chứa mẫu câu lệnh độc hại (ví dụ: `' OR 1=1`, `UNION SELECT`, `DROP TABLE`, inline comments `--`) sẽ bị chặn ngay lập tức với mã HTTP `403 Forbidden`.
+   - Dữ liệu gửi lên cần được định dạng chuẩn, không chèn các ký tự điều khiển hay mã khai thác.
+3. **Che giấu dữ liệu nhạy cảm (Data Masking):**
+   - Mọi thông tin nhạy cảm như `matkhau`, `password`, `token`, `cccd`, `sobhyt` đều được hệ thống tự động che giấu (`***HIDDEN***`) trong các file log máy chủ để đảm bảo an toàn tuyệt đối thông tin bệnh nhân theo quy chuẩn y tế.
 
 
 

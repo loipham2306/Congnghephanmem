@@ -19,6 +19,8 @@ const examinationRoutes = require("./routers/examination.router");
 const medicineRoutes = require("./routers/medicine.router");
 const prescriptionRoutes = require("./routers/prescription.router");
 const healthRoutes = require("./routers/health.router");
+const requestLoggerMiddleware = require("./middlewares/requestLogger.middleware");
+const sqlInjectionGuardMiddleware = require("./middlewares/sqlInjectionGuard.middleware");
 const errorMiddleware = require("./middlewares/error.middleware");
 const app = express();
 const swaggerDocument = YAML.load(path.join(__dirname, "../docs/openapi.yaml"));
@@ -60,6 +62,8 @@ app.use((req, res, next) => {
     if (req.body === undefined || req.body === null) req.body = {};
     return next();
 });
+app.use(requestLoggerMiddleware);
+app.use(sqlInjectionGuardMiddleware);
 
 // ========================================================
 // 2. ROUTE KIỂM TRA HỆ THỐNG (HEALTH CHECK)
