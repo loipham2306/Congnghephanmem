@@ -1,6 +1,6 @@
 # 📋 TÀI LIỆU TÍCH HỢP API BACKEND CHO FRONTEND
 > **Hệ Thống Quản Lý Phòng Khám (Clinic Management System)**  
-> **Cập nhật ngày:** 27/10/2026 | **Phiên bản API:** v1.2.0
+> **Cập nhật ngày:** 30/10/2026 | **Phiên bản API:** v1.2.0
 
 ---
 
@@ -66,6 +66,7 @@ Lưu ý: tạo tài khoản `BacSi` **chưa tự tạo hồ sơ `bacsi`** (cần
 | Method | Endpoint | Quyền | Ghi chú |
 |--------|----------|-------|---------|
 | GET | `/api/appointments/available-slots?mabs=2&ngayhen=2026-10-28` | BenhNhan, Admin, LeTan, BacSi | Trả slot 30 phút, `conlai`, `daky`; slot đã qua đánh dấu không khả dụng |
+| GET | `/api/appointments/:id` | Admin, LeTan, BacSi, BenhNhan (của mình) | Xem chi tiết lịch hẹn; bệnh nhân chỉ xem lịch của mình |
 | PATCH | `/api/appointments/:id/check-in` | Admin, LeTan | Tiếp đón lịch `DaXacNhan`, cấp `sohangcho` |
 | GET | `/api/appointments/queue?date=2026-10-28&mabs=2` | Admin, LeTan, BacSi | Hàng chờ trong ngày, sắp theo số thứ tự |
 | PUT | `/api/appointments/:id/status` | Admin, LeTan, BacSi, BenhNhan (chỉ hủy) | Body `{ trangthai, ghichu?, lydohuy? }` |
@@ -106,6 +107,8 @@ Mọi báo cáo nhận `startDate`, `endDate` (`YYYY-MM-DD`); mặc định 30 n
 |--------|----------|---------|
 | GET | `/api/health` | API sống |
 | GET | `/api/health/db` | Kiểm tra DB, trigger tính tiền, 2 unique index chống trùng slot |
+
+Swagger UI: `http://localhost:5000/api/docs` (spec: `backend/docs/openapi.yaml`). Swagger hiện phủ các nhóm API chính; dùng tài liệu này cho hợp đồng chi tiết đầy đủ.
 
 ### 0.6. Bảng quyền nhanh
 
